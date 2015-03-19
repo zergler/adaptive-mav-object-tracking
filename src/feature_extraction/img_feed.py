@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 
-""" Encapsulates an image feed.
+""" Encapsulates an image stream.
 """
 
 
-class ImgFeed(object):
-    """ Encapsulates an image feed.
+class ImgStream(object):
+    """ Encapsulates an image stream.
     """
-    def __init__(self, feed_name):
+    def __init__(self, stream):
         self.feed_name == feed_name
         self.curFrame = 0
 
