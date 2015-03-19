@@ -17,6 +17,6 @@ while True:
         jpg = ss[a:b + 2]
         ss = ss[b + 2:]
         i = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.CV_LOAD_IMAGE_COLOR)
-        cv2.imshow('i', i)
+        cv2.imshow('opencv image server raspi test', i)
         if cv2.waitKey(1) == 27:
             exit(0)
