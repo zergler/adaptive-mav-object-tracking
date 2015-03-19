@@ -7,7 +7,7 @@ import numpy as np
 
 # This works (tested) with raspberry pi and camera module but it should work with parrot too.
 
-stream = urllib.urlopen('http://10.0.0.17:9000/?action=stream')
+stream = urllib.urlopen('http://10.0.0.17:8080/?action=stream')
 ss = ''
 while True:
     ss += stream.read(1024)
