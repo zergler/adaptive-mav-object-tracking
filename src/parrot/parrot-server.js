@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var arDrone = require('ar-drone');
 var http    = require('http');
 
@@ -41,18 +43,27 @@ rl.on('line', function(line) {
     // Make sure the parsed json file is valid.
     var query = JSON.parse(line)
 
-    // Maybe figure out how to use pcmd and use that instead.
-    if (query.turn) {
-        client.clockwise(query.turn)
+    if (query.X > 0) {
+        client.right(query.X)
     }
-    if (query.land) {
-        client.land()
+    if (query.X < 0) {
+        client.left(Math.abs(query.X))
     }
-    if (query.takeoff) {
+    if (query.Y > 0) {
+        client.front(query.Y)
+    }
+    if (query.Y < 0) {
+        client.back(Math.abs(query.Y))
+    }
+    if (query.T) {
         client.takeoff()
+    }
+    if (query.L) {
+        client.land()
     }
 }).on('close', function() {
     console.log('Exiting application.');
+    client.land()
     process.exit(0);
 });
 

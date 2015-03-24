@@ -72,7 +72,7 @@ class FeatureExtract(object):
         # Connect a client socket to my_server:8000 (change my_server to the
         # hostname of your server)
         front_client_socket = socket.socket()
-        front_client_socket.connect(('192.168.1.2', front_stream))
+        front_client_socket.connect(('192.168.1.2:', front_stream))
 
         # Make a file-like object out of the connection
         connection = front_client_socket.makefile('wb')
