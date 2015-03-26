@@ -4,10 +4,12 @@
 """
 
 import argparse
+import random
 import sys
 import socket
 import threading
 import time
+import Queue
 
 import Tkinter as tk
 from PIL import ImageTk, Image
@@ -18,7 +20,6 @@ try:
 except ImportError:
     DEBUG = 0
 
-query = None
 
 class Error(Exception):
     """ Base exception for the module.
@@ -100,20 +101,9 @@ class Fly(object):
         self.gui = self.create_gui() if gui else None
         self.speed = 0.3
 
-        # Create the json template that will be passed to the cmd server.
-        self.default_query = {
-            'X': 0.0,
-            'Y': 0.0,
-            'C': 0.0,
-            'T': False,
-            'L': False
-        }
-        global query
-        query = self.default_query
-
-        self.query_lock = threading.Lock()
-        net_thread = Network(self.query_lock)
-        net_thread.start()
+        self.server_address = 'localhost'
+        self.server_png_port = 9000
+        self.server_cmd_port = 9001
 
     def create_gui(self):
         """ Factory method that builds the GUI and passes the fly object to it.
@@ -140,7 +130,22 @@ class Fly(object):
             print('Waiting for input...')
         if self.gui:
             self.gui.run()
-        
+
+        # Connect to the node js servers.
+        self.png_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.png_soc.connect((self.server_address, self.server_png_port))
+        self.cmd_soc.connect((self.server_address, self.server_cmd_port))
+
+        # Create the json template that will be passed to the cmd server.
+        self.default_query = {
+            'X': 0.0,
+            'Y': 0.0,
+            'C': 0.0,
+            'T': False,
+            'L': False
+        }
+
     class FlyGUI(object):
         """ GUI for flying tool.
         """
@@ -160,6 +165,19 @@ class Fly(object):
 
                 self.root.config(menu=self.menu)
                 self.create_gui()
+
+                self.queue = Queue.Queue()
+                self.ThreadedTask(self. queue).start()
+                self.root.after(100, self.process_queue)
+
+        def process_queue(self):
+            """ Handle all messages currently in the queue, if any.
+            """
+            try:
+                msg = self.queue.get(0)
+                print(msg)
+            except Queue.Empty:
+                self.root.after(100, self.process_queue)
 
         def run(self):
             self.root.mainloop()
@@ -241,12 +259,9 @@ class Fly(object):
 
         def callback_button_tl(self):
             print('Sending command to turn left at speed %0.1f.' % self.fly.speed)
-            global query
-            self.query_lock.acquire()
             query = self.fly.default_query
             query['C'] = self.fly.speed
             query_json = json.dumps(query)
-            self.query_lock.release()
             self.cmd_soc.send(query_json)
 
         def callback_button_tr(self):
@@ -282,33 +297,15 @@ class Fly(object):
             pass
 
 
-class Network(threading.Thread):
-    """ Handles network stuff.
-    """
-    def __init__(self, query_lock):
+class ThreadedTask(threading.Thread):
+    def __init__(self, queue):
         threading.Thread.__init__(self)
-        self.query_lock = query_lock
-        self.server_address = 'localhost'
-        self.server_png_port = 9000
-        self.server_cmd_port = 9001
+        self.queue = queue
 
     def run(self):
-        print("Starting")
-        # Connect to the node js servers.
-        #self.png_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self.png_soc.connect((self.server_address, self.server_png_port))
-        #self.cmd_soc.connect((self.server_address, self.server_cmd_port))
-
-        global query
-        self.query_lock.acquire()
-        cur_query = query
-        self.query_lock.release()
-
-        while True:
-            time.sleep(5)
-
-
+        time.sleep(5)  # Simulate long running process
+        pdb.set_trace()
+        self.queue.put("Task finished")
 
 
 def main():
