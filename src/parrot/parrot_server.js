@@ -36,7 +36,7 @@ pngServer.listen(9000, function() {
     console.log(':: Serving PNG stream on port ' + pngPort + '.');
 });
 
-
+// Server tjat listens for incoming commands for the drone.
 console.log(':: Creating socket net server for receiving commands.');
 var cmdServer = net.createServer(function(socket) {
     // The socket has been opened.
@@ -44,41 +44,52 @@ var cmdServer = net.createServer(function(socket) {
 
     // This code will run when new data arives.
     socket.on('data', function(data){
-        console.log('Receiving data...');
         var query;
         try {
             var query = JSON.parse(data);
             if (query.X > 0) {
-                console.log('Receiving command to fly right at speed ' + query.X + '.')
-                //client.right(query.X)
+                console.log('Receiving command to fly right at speed ' + query.X + '.');
+                client.right(query.X);
             }
             if (query.X < 0) {
-                console.log('Receiving command to fly left at speed ' + query.X + '.')
-                //client.left(Math.abs(query.X))
+                console.log('Receiving command to fly left at speed ' + Math.abs(query.X) + '.');
+                client.left(Math.abs(query.X));
             }
             if (query.Y > 0) {
-                console.log('Receiving command to fly forward at speed ' + query.Y + '.')
-                //client.front(query.Y)
+                console.log('Receiving command to fly forward at speed ' + query.Y + '.');
+                client.front(query.Y);
             }
             if (query.Y < 0) {
-                console.log('Receiving command to fly backward at speed ' + query.Y + '.')
-                //client.back(Math.abs(query.Y))
+                console.log('Receiving command to fly backward at speed ' + Math.abs(query.Y) + '.');
+                client.back(Math.abs(query.Y));
             }
             if (query.C > 0) {
-                console.log('Receiving command to turn right at speed ' + query.C + '.')
+                console.log('Receiving command to turn right at speed ' + query.C + '.');
+                client.clockwise(query.C);
+            }
+            if (query.C < 0) {
+                console.log('Receiving command to turn left at speed ' + Math.abs(query.C) + '.');
+                client.counterclockwise(Math.abs(query.C));
             }
             if (query.T) {
-                console.log('Receiving command to takeoff')
-                //client.takeoff()
+                console.log('Receiving command to takeoff.');
+                client.takeoff();
             }
             if (query.L) {
-                console.log('Receiving command to land.')
-                //client.land()
+                console.log('Receiving command to land.');
+                client.land();
+            }
+            if (query.S) {
+                console.log('Receiving command to stop.');
+                client.stop();
+            }
+            else {
+                console.log('Receiving null command (speed might be set to 0.');
             }
         }
         catch (e) {
             // Parsed query is not a valid json object.
-            console.log('Error: received query is not valid json.')
+            console.log('Error: received query is not valid json.');
         }
     });
 

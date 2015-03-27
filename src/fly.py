@@ -4,11 +4,14 @@
 """
 
 import argparse
+import json
 import sys
 import socket
 import threading
-import time
+import urllib2
 
+import cv2
+import numpy as np
 import Tkinter as tk
 from PIL import ImageTk, Image
 
@@ -18,7 +21,6 @@ try:
 except ImportError:
     DEBUG = 0
 
-query = None
 
 class Error(Exception):
     """ Base exception for the module.
@@ -106,14 +108,13 @@ class Fly(object):
             'Y': 0.0,
             'C': 0.0,
             'T': False,
-            'L': False
+            'L': False,
+            'S': False
         }
-        global query
-        query = self.default_query
 
-        self.query_lock = threading.Lock()
-        net_thread = Network(self.query_lock)
-        net_thread.start()
+        self.net_thread = Network()
+        self.net_thread.daemon = True
+        self.net_thread.start()
 
     def create_gui(self):
         """ Factory method that builds the GUI and passes the fly object to it.
@@ -140,7 +141,7 @@ class Fly(object):
             print('Waiting for input...')
         if self.gui:
             self.gui.run()
-        
+
     class FlyGUI(object):
         """ GUI for flying tool.
         """
@@ -162,6 +163,7 @@ class Fly(object):
                 self.create_gui()
 
         def run(self):
+            self.update_video()
             self.root.mainloop()
             sys.exit(0)
 
@@ -184,8 +186,8 @@ class Fly(object):
             self.control_tr = tk.Button(self.controls_frame, text='TR', command=self.callback_button_tr)
             self.control_left = tk.Button(self.controls_frame, text='Left', command=self.callback_button_left)
             self.control_right = tk.Button(self.controls_frame, text='Right', command=self.callback_button_right)
-            self.control_up = tk.Button(self.controls_frame, text='Up', command=self.callback_button_up)
-            self.control_down = tk.Button(self.controls_frame, text='Down', command=self.callback_button_down)
+            self.control_up = tk.Button(self.controls_frame, text='Up', command=self.callback_button_forward)
+            self.control_down = tk.Button(self.controls_frame, text='Down', command=self.callback_button_backward)
             self.control_land = tk.Button(self.controls_frame, text='Land', command=self.callback_button_land)
             self.control_takeoff = tk.Button(self.controls_frame, text='Takeoff', command=self.callback_button_takeoff)
             self.control_stop = tk.Button(self.controls_frame, text='Stop', command=self.callback_button_stop)
@@ -217,13 +219,13 @@ class Fly(object):
             # Test images for frames.
             test_image = Image.open('../samples/test_cameras.jpg')
             test_photo = ImageTk.PhotoImage(test_image)
-            fc_test_label = tk.Label(self.fc_frame, image=test_photo)
-            fc_test_label.image = test_photo
+            self.fc_test_label = tk.Label(self.fc_frame, image=test_photo)
+            self.fc_test_label.image = test_photo
             bc_test_label = tk.Label(self.bc_frame, image=test_photo)
             bc_test_label.image = test_photo
 
             # self.world_label.bind('<Configure>', self.resize)
-            fc_test_label.pack()
+            self.fc_test_label.pack()
             bc_test_label.pack()
 
         def callback_help(self):
@@ -241,74 +243,113 @@ class Fly(object):
 
         def callback_button_tl(self):
             print('Sending command to turn left at speed %0.1f.' % self.fly.speed)
-            global query
-            self.query_lock.acquire()
-            query = self.fly.default_query
-            query['C'] = self.fly.speed
+            query = self.fly.default_query.copy()
+            query['C'] = -self.fly.speed
             query_json = json.dumps(query)
-            self.query_lock.release()
-            self.cmd_soc.send(query_json)
+            self.fly.net_thread.send_query(query_json)
 
         def callback_button_tr(self):
-            print('Turning right at speed %0.1f.' % self.fly.speed)
-            pass
+            print('Sending command to turn right at speed %0.1f.' % self.fly.speed)
+            query = self.fly.default_query.copy()
+            query['C'] = self.fly.speed
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
         def callback_button_left(self):
-            print('Moving left at speed %0.1f.' % self.fly.speed)
-            pass
+            print('Sending command to fly left at speed %0.1f.' % self.fly.speed)
+            query = self.fly.default_query.copy()
+            query['X'] = -self.fly.speed
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
         def callback_button_right(self):
-            print('Moving right at speed %0.1f.' % self.fly.speed)
-            pass
+            print('Sending command to fly right at speed %0.1f.' % self.fly.speed)
+            query = self.fly.default_query.copy()
+            query['X'] = self.fly.speed
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
-        def callback_button_up(self):
-            print('Moving up at speed %0.1f.' % self.fly.speed)
-            pass
+        def callback_button_forward(self):
+            print('Sending command to fly forward at speed %0.1f.' % self.fly.speed)
+            query = self.fly.default_query.copy()
+            query['Y'] = self.fly.speed
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
-        def callback_button_down(self):
-            print('Moving down at speed %0.1f.' % self.fly.speed)
-            pass
+        def callback_button_backward(self):
+            print('Sending command to fly backward speed %0.1f.' % self.fly.speed)
+            query = self.fly.default_query.copy()
+            query['Y'] = -self.fly.speed
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
         def callback_button_land(self):
-            print('Landing.')
-            pass
+            print('Sending command to land.')
+            query = self.fly.default_query.copy()
+            query['L'] = True
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
         def callback_button_takeoff(self):
-            print('Taking off.')
-            pass
+            print('Sending command to takeoff.')
+            query = self.fly.default_query.copy()
+            query['T'] = True
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
 
         def callback_button_stop(self):
-            print('Stoping.')
-            pass
+            print('Sending command to stop.')
+            query = self.fly.default_query.copy()
+            query['S'] = True
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
+
+        def update_video(self):
+            self.root.after(30, self.update_video)
+            frame = self.fly.net_thread.parrot_cam.get_frame()
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_frame = Image.fromarray(frame)
+            pil_frame - pil_frame.resize((400, 400), Image.ANTIALIAS)
+            photo_frame = ImageTk.PhotoImage(pil_frame)
+            self.fc_test_label.config(image=photo_frame)
+            self.fc_test_label.image = photo_frame
 
 
 class Network(threading.Thread):
     """ Handles network stuff.
     """
-    def __init__(self, query_lock):
+    def __init__(self):
         threading.Thread.__init__(self)
-        self.query_lock = query_lock
         self.server_address = 'localhost'
         self.server_png_port = 9000
         self.server_cmd_port = 9001
+        self.parrot_cam = ipCamera(url='http://192.168.1.2:9000')
 
     def run(self):
         print("Starting")
+
         # Connect to the node js servers.
-        #self.png_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self.png_soc.connect((self.server_address, self.server_png_port))
-        #self.cmd_soc.connect((self.server_address, self.server_cmd_port))
+        self.png_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # self.png_soc.connect((self.server_address, self.server_png_port))
+        self.cmd_soc.connect((self.server_address, self.server_cmd_port))
 
-        global query
-        self.query_lock.acquire()
-        cur_query = query
-        self.query_lock.release()
-
-        while True:
-            time.sleep(5)
+    def send_query(self, query):
+        self.cmd_soc.send(query)
 
 
+class ipCamera(object):
+    """
+    """
+    def __init__(self, url):
+        self.url = url
+        self.req = urllib2.Request(self.url)
+
+    def get_frame(self):
+        response = urllib2.urlopen(self.req)
+        img_array = np.asarray(bytearray(response.read()), dtype=np.uint8)
+        frame = cv2.imdecode(img_array, 1)
+        return frame
 
 
 def main():
