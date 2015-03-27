@@ -55,7 +55,7 @@ class FlyArgs(object):
         gui_help = 'Use this flag if you want to use the gui.'
         record_help = 'Use this argument if you want to record the front and bottom camera streams as mpeg. If so, pass the name of the files the streams will be saved in.'
         verb_help = 'Increase the output verbosity.'
-        streams_help = 'Port of the image stream for the front and bottom camera seperated by a comma.'
+        streams_help = 'Port of the png image stream server and command server seperated by a comma.'
 
         # Argparser.
         self.arg_parser = argparse.ArgumentParser(prog=name, description=desc, epilog=epil, add_help=False)
@@ -95,24 +95,26 @@ class Fly(object):
     """
     def __init__(self, gui, verb, record, streams):
         self.verb = verb
-        self.fc_port = streams[0] if streams else None
-        self.bc_port = streams[1] if streams else None
+        self.png_port = streams[0] if streams else None
+        self.cmd_port = streams[1] if streams else None
         self.fc_filename = record[0] if record else None
         self.bc_filename = record[1] if record else None
         self.gui = self.create_gui() if gui else None
         self.speed = 0.3
+        self.cam = False  # False is front camera, true is bottom camera
 
         # Create the json template that will be passed to the cmd server.
         self.default_query = {
             'X': 0.0,
             'Y': 0.0,
-            'C': 0.0,
+            'R': 0.0,
+            'C': 0,
             'T': False,
             'L': False,
             'S': False
         }
 
-        self.net_thread = Network()
+        self.net_thread = Network(self.png_port, self.cmd_port)
         self.net_thread.daemon = True
         self.net_thread.start()
 
@@ -130,9 +132,9 @@ class Fly(object):
             if self.gui:
                 print(':: GUI flag set.')
             print(':: Verbosity set to %d.' % self.verb)
-            if self.fc_port and self.bc_port:
-                print(':: Accessing front camera stream at port: %s.' % self.fc_port)
-                print(':: Accessing bottom camera stream at port: %s.' % self.bc_port)
+            if self.png_port and self.cmd_port:
+                print(':: Accessing camera stream server at port: %s.' % self.png_port)
+                print(':: Accessing command server at port: %s.' % self.cmd_port)
             if self.fc_filename and self.br_filename:
                 print(':: Saving front camera stream to file: %s.' % self.fc_filename)
                 print(':: Saving bottom camera stream to file: %s.' % self.br_filename)
@@ -154,8 +156,7 @@ class Fly(object):
                 self.menu = tk.Menu(self.root)
                 self.file_menu = tk.Menu(self.menu, tearoff=0)
                 self.help_menu = tk.Menu(self.menu, tearoff=0)
-                self.fc_frame = tk.Frame(self.root)
-                self.bc_frame = tk.Frame(self.root)
+                self.cam_frame = tk.Frame(self.root)
                 self.controls_frame = tk.Frame(self.root)
                 self.info_frame = tk.Frame(self.root)
 
@@ -171,36 +172,42 @@ class Fly(object):
             """ Creates the gui.
             """
             # Create the layout of the frames.
-            self.fc_frame.pack()
-            self.bc_frame.pack()
+            self.cam_frame.pack()
             self.controls_frame.pack()
             self.info_frame.pack()
 
-            # Create the layout of the scale.
-            self.control_speed = tk.Scale(self.controls_frame, from_=0, to=1, orient=tk.HORIZONTAL, resolution=0.1, command=self.callback_scale_speed)
+            # Create the layout of the speed scale.
+            self.control_speed = tk.Scale(self.controls_frame, from_=1, to=0, resolution=0.1, command=self.callback_scale_speed)
             self.control_speed.set(0.3)
-            self.control_speed.grid(row=3, column=0, columnspan=3)
+            self.control_speed.grid(row=0, column=0, rowspan=4)
+
+            # Create the layout of the altitude scale.
+            self.control_alt = tk.Scale(self.controls_frame, from_=1, to=-1, resolution=0.1, command=self.callback_scale_alt)
+            self.control_alt.set(0.0)
+            self.control_alt.grid(row=0, column=4, rowspan=4)
 
             # Create the layout of the buttons.
             self.control_tl = tk.Button(self.controls_frame, text='TL', command=self.callback_button_tl)
             self.control_tr = tk.Button(self.controls_frame, text='TR', command=self.callback_button_tr)
             self.control_left = tk.Button(self.controls_frame, text='Left', command=self.callback_button_left)
             self.control_right = tk.Button(self.controls_frame, text='Right', command=self.callback_button_right)
-            self.control_up = tk.Button(self.controls_frame, text='Up', command=self.callback_button_forward)
-            self.control_down = tk.Button(self.controls_frame, text='Down', command=self.callback_button_backward)
+            self.control_up = tk.Button(self.controls_frame, text='Forward', command=self.callback_button_forward)
+            self.control_down = tk.Button(self.controls_frame, text='Backward', command=self.callback_button_backward)
             self.control_land = tk.Button(self.controls_frame, text='Land', command=self.callback_button_land)
             self.control_takeoff = tk.Button(self.controls_frame, text='Takeoff', command=self.callback_button_takeoff)
             self.control_stop = tk.Button(self.controls_frame, text='Stop', command=self.callback_button_stop)
+            self.control_cam = tk.Button(self.controls_frame, text='Front Camera', command=self.callback_button_cam)
 
-            self.control_tl.grid(row=0, column=0, sticky=tk.S+tk.E+tk.W)
-            self.control_up.grid(row=0, column=1, sticky=tk.S+tk.E+tk.W)
-            self.control_tr.grid(row=0, column=2, sticky=tk.S+tk.E+tk.W)
-            self.control_left.grid(row=1, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
-            self.control_down.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
-            self.control_right.grid(row=1, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
-            self.control_land.grid(row=2, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
-            self.control_stop.grid(row=2, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
-            self.control_takeoff.grid(row=2, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_tl.grid(row=0, column=1, sticky=tk.S+tk.E+tk.W)
+            self.control_up.grid(row=0, column=2, sticky=tk.S+tk.E+tk.W)
+            self.control_tr.grid(row=0, column=3, sticky=tk.S+tk.E+tk.W)
+            self.control_left.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_down.grid(row=1, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_right.grid(row=1, column=3, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_land.grid(row=2, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_stop.grid(row=2, column=2, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_takeoff.grid(row=2, column=3, sticky=tk.N+tk.S+tk.E+tk.W)
+            self.control_cam.grid(row=3, column=1, columnspan=3, sticky=tk.N+tk.S+tk.E+tk.W)
 
             # Create the layout of the info labels.
             self.altitude = tk.Label(self.info_frame, text='Altitude:', anchor=tk.W, justify=tk.LEFT, width=90)
@@ -219,14 +226,11 @@ class Fly(object):
             # Test images for frames.
             test_image = Image.open('../samples/test_cameras.jpg')
             test_photo = ImageTk.PhotoImage(test_image)
-            self.fc_test_label = tk.Label(self.fc_frame, image=test_photo)
-            self.fc_test_label.image = test_photo
-            bc_test_label = tk.Label(self.bc_frame, image=test_photo)
-            bc_test_label.image = test_photo
+            self.cam_label = tk.Label(self.cam_frame, image=test_photo)
+            self.cam_label.image = test_photo
 
             # self.world_label.bind('<Configure>', self.resize)
-            self.fc_test_label.pack()
-            bc_test_label.pack()
+            self.cam_label.pack()
 
         def callback_help(self):
             filewin = tk.Toplevel(self.root)
@@ -241,17 +245,24 @@ class Fly(object):
         def callback_scale_speed(self, value):
             self.fly.speed = float(value)
 
+        def callback_scale_alt(self, value):
+            print('Sending command to fly up at speed %0.1f.' % self.fly.speed)
+            query = self.fly.default_query.copy()
+            query['Z'] = value
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
+
         def callback_button_tl(self):
             print('Sending command to turn left at speed %0.1f.' % self.fly.speed)
             query = self.fly.default_query.copy()
-            query['C'] = -self.fly.speed
+            query['R'] = -self.fly.speed
             query_json = json.dumps(query)
             self.fly.net_thread.send_query(query_json)
 
         def callback_button_tr(self):
             print('Sending command to turn right at speed %0.1f.' % self.fly.speed)
             query = self.fly.default_query.copy()
-            query['C'] = self.fly.speed
+            query['R'] = self.fly.speed
             query_json = json.dumps(query)
             self.fly.net_thread.send_query(query_json)
 
@@ -304,35 +315,46 @@ class Fly(object):
             query_json = json.dumps(query)
             self.fly.net_thread.send_query(query_json)
 
+        def callback_button_cam(self):
+            print('Sending command to toggle camera.')
+            query = self.fly.default_query.copy()
+            query['C'] = True
+            query_json = json.dumps(query)
+            self.fly.net_thread.send_query(query_json)
+            self.fly.cam = not self.fly.cam
+            if self.fly.cam:
+                self.control_cam.configure(text='Bottom Camera')
+            else:
+                self.control_cam.configure(text='Front Camera')
+
         def update_video(self):
             self.root.after(30, self.update_video)
             frame = self.fly.net_thread.parrot_cam.get_frame()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_frame = Image.fromarray(frame)
-            pil_frame - pil_frame.resize((400, 400), Image.ANTIALIAS)
+            pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)
             photo_frame = ImageTk.PhotoImage(pil_frame)
-            self.fc_test_label.config(image=photo_frame)
-            self.fc_test_label.image = photo_frame
+            self.cam_label.config(image=photo_frame)
+            self.cam_label.image = photo_frame
 
 
 class Network(threading.Thread):
     """ Handles network stuff.
     """
-    def __init__(self):
+    def __init__(self, png_port, cmd_port):
         threading.Thread.__init__(self)
-        self.server_address = 'localhost'
-        self.server_png_port = 9000
-        self.server_cmd_port = 9001
-        self.parrot_cam = ipCamera(url='http://192.168.1.2:9000')
+        self.cmd_address = 'localhost'
+        self.png_address = '192.168.1.2'
+        self.png_port = png_port
+        self.cmd_port = cmd_port
+        self.parrot_cam = ipCamera(url='http://' + self.png_address + ':' + self.png_port)
 
     def run(self):
         print("Starting")
 
         # Connect to the node js servers.
-        self.png_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # self.png_soc.connect((self.server_address, self.server_png_port))
-        self.cmd_soc.connect((self.server_address, self.server_cmd_port))
+        self.cmd_soc.connect((self.cmd_address, int(self.cmd_port)))
 
     def send_query(self, query):
         self.cmd_soc.send(query)

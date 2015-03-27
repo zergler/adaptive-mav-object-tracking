@@ -6,6 +6,8 @@ var net     = require('net');
 
 console.log('Node js interface application for Parrot AR drone.')
 console.log(':: Connecting to Parrot client.');
+
+// Maybe specify frame rate and image size...
 var client  = arDrone.createClient();
 var pngPort = 9000;
 var cmdPort = 9001;
@@ -31,6 +33,7 @@ var pngServer = http.createServer(function(req, res) {
     res.writeHead(200, {'Content-Type': 'image/png'});
     res.end(lastPng);
 });
+var camera = 0; // Whether or not to access front or bottom camera.
 
 pngServer.listen(9000, function() {
     console.log(':: Serving PNG stream on port ' + pngPort + '.');
@@ -63,11 +66,19 @@ var cmdServer = net.createServer(function(socket) {
                 console.log('Receiving command to fly backward at speed ' + Math.abs(query.Y) + '.');
                 client.back(Math.abs(query.Y));
             }
-            if (query.C > 0) {
+            if (query.Z > 0) {
+                console.log('Receiving command to fly up at speed ' + query.Z + '.');
+                client.up(query.Z);
+            }
+            if (query.Z < 0) {
+                console.log('Receiving command to fly down at speed ' + Math.abs(query.Z) + '.');
+                client.down(Math.abs(query.Z));
+            }
+            if (query.R > 0) {
                 console.log('Receiving command to turn right at speed ' + query.C + '.');
                 client.clockwise(query.C);
             }
-            if (query.C < 0) {
+            if (query.R < 0) {
                 console.log('Receiving command to turn left at speed ' + Math.abs(query.C) + '.');
                 client.counterclockwise(Math.abs(query.C));
             }
@@ -79,12 +90,21 @@ var cmdServer = net.createServer(function(socket) {
                 console.log('Receiving command to land.');
                 client.land();
             }
+            if (query.C) {
+                if (camera == 0) {
+                    camera = 3;
+                    console.log('Receiving command to serve the bottom camera stream');
+                    client.config('video:video_channel', 3);
+                }
+                else if (camera == 3) {
+                    camera = 0;
+                    console.log('Receiving command to serve the front cammera stream');
+                    client.config('video:video_channel', 0)
+                }
+            }
             if (query.S) {
                 console.log('Receiving command to stop.');
                 client.stop();
-            }
-            else {
-                console.log('Receiving null command (speed might be set to 0.');
             }
         }
         catch (e) {
