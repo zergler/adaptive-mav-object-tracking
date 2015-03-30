@@ -18,6 +18,8 @@ from PIL import ImageTk, Image
 
 # Igor's modules.
 import feature_extraction.optical_flow as opt_flow
+import feature_extraction.hough_transform as hough_trans
+import tracking.mean_shift as mean_sh
 
 DEBUG = 0
 try:
@@ -499,6 +501,8 @@ class Drone(object):
         self.controller.start()
 
         self.feat_opt_flow = opt_flow.OpticalFlow(self.camera.get_frame())
+        self.feat_hough_trans = hough_trans.HoughTransform()
+        self.feat_mean_shift = mean_sh.MeanShift(self.camera.get_frame(), (200, 200), (50, 50))
 
     def set_speed(self, speed):
         self.speed = speed
@@ -636,6 +640,14 @@ class Camera(object):
         finally:
             return frame
 
+    def get_window(self, overlap, number):
+        """ Features are computed over square windows in the image, with a
+            specified overlap and number. The feature vectors of all windows are
+            concatenated into a single feature vector. Consider computational
+            cost when choosing the parameters to this function. Try 15x7 first.
+        """
+        pass
+
 
 def main():
     try:
@@ -643,7 +655,6 @@ def main():
         if DEBUG:
             pdb.set_trace()
 
-        # Make the operating system not try and debounce key presses.
         fa = FlyToolArgs()
         fa.parse()
         f = FlyTool(fa.args.gui, fa.args.verb, fa.args.url, fa.args.port, fa.args.stream)

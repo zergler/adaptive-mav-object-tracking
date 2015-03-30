@@ -11,10 +11,10 @@ class OpticalFlow(object):
     """ Extracts optical flow features from an image and its predecessor using
         Lucas-Kanade method.
     """
-    def __init__(self, test_frame):
+    def __init__(self, init_frame):
         # Parameters of the camera/images.
-        self.prev_gray = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
-        self.hsv = np.zeros_like(test_frame)
+        self.prev_gray = cv2.cvtColor(init_frame, cv2.COLOR_BGR2GRAY)
+        self.hsv = np.zeros_like(init_frame)
         self.hsv[..., 1] = 255
 
         # Parameters for farneback optical flow.
@@ -55,9 +55,9 @@ def test_optical_flow(test_filename):
     """
     # Get the video used for the test.
     stream = cv2.VideoCapture(test_filename)
-    (ret, test_frame) = stream.read()
+    (ret, init_frame) = stream.read()
 
-    opt_flow = OpticalFlow(test_frame)
+    opt_flow = OpticalFlow(init_frame)
     while stream.isOpened():
         (ret, frame) = stream.read()
         if ret:
@@ -70,7 +70,6 @@ def test_optical_flow(test_filename):
 
     stream.release()
     cv2.destroyAllWindows()
-    pass
 
 
 def main():

@@ -13,12 +13,11 @@ class CmdHistory(object):
     def __init__(self):
         pass
 
-    def extract(self, img):
-        pass
+    def extract(self, cur_cmd):
 
 
-def test_cmd_history(object):
-    sample_imgs = [None]
+def test_cmd_history(test_filename):
+    sample_imgs = 
     cmd_history = CmdHistory()
     cmd_history.extract(sample_imgs[0])
 
