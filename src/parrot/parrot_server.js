@@ -75,12 +75,12 @@ var cmdServer = net.createServer(function(socket) {
                 client.down(Math.abs(query.Z));
             }
             if (query.R > 0) {
-                console.log('Receiving command to turn right at speed ' + query.C + '.');
-                client.clockwise(query.C);
+                console.log('Receiving command to turn right at speed ' + query.R + '.');
+                client.clockwise(query.R);
             }
             if (query.R < 0) {
-                console.log('Receiving command to turn left at speed ' + Math.abs(query.C) + '.');
-                client.counterclockwise(Math.abs(query.C));
+                console.log('Receiving command to turn left at speed ' + Math.abs(query.R) + '.');
+                client.counterClockwise(Math.abs(query.R));
             }
             if (query.T) {
                 console.log('Receiving command to takeoff.');
