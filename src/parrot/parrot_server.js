@@ -9,8 +9,8 @@ console.log(':: Connecting to Parrot client.');
 
 // Maybe specify frame rate and image size...
 var client  = arDrone.createClient();
-var pngPort = 9000;
-var cmdPort = 9001;
+var pngPort = 9001;
+var cmdPort = 9000;
 
 // PNG stream from the drone.
 console.log(':: Getting PNG stream from Parrot.')
@@ -35,7 +35,7 @@ var pngServer = http.createServer(function(req, res) {
 });
 var camera = 0; // Whether or not to access front or bottom camera.
 
-pngServer.listen(9000, function() {
+pngServer.listen(pngPort, function() {
     console.log(':: Serving PNG stream on port ' + pngPort + '.');
 });
 

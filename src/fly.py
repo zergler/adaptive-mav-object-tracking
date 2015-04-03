@@ -211,16 +211,6 @@ class FlyTool(object):
             self.cam_frame.bind_all('<Key>', self.key_press)
             self.cam_frame.bind_all('<KeyRelease>', self.key_release)
 
-            # Flags for key presses/releases.
-            self.key_q = False
-            self.key_w = False
-            self.key_e = False
-            self.key_r = False
-            self.key_a = False
-            self.key_s = False
-            self.key_d = False
-            self.key_f = False
-
             # Create the layout of the frames.
             self.cam_frame.pack()
             self.controls_frame.pack()
@@ -467,7 +457,7 @@ class FlyTool(object):
 
         def update_video(self):
             self.root.after(300, self.update_video)
-            frame = self.fly.drone.feat_opt_flow.extract(self.fly.drone.camera.get_frame())
+            frame = self.fly.drone.feat_hough_trans.extract(self.fly.drone.camera.get_frame())
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_frame = Image.fromarray(frame)
             pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)

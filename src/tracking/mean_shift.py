@@ -3,11 +3,9 @@
 """ Mean shift object tracking.
 """
 
-import pdb
 import numpy as np
 import cv2
-import Tkinter as tk
-from PIL import ImageTk, Image
+import bounding_box as bb
 
 
 class MeanShift(object):
@@ -15,10 +13,14 @@ class MeanShift(object):
     """
     def __init__(self, init_frame, vertex_1, vertex_2):
         # Grab the values from the vertices.
-        r = vertex_1[0]
-        c = vertex_1[1]
-        h = abs(vertex_1[0] - vertex_2[0])
-        w = abs(vertex_1[1] - vertex_2[1])
+        c1 = vertex_1[0]
+        r1 = vertex_1[1]
+        c2 = vertex_2[0]
+        r2 = vertex_2[1]
+        h = abs(r1 - r2)
+        w = abs(c1 - c2)
+        r = min(r1, r2)
+        c = min(c1, c2)
 
         # setup initial location of window
         self.track_window = (c, r, w, h)
@@ -41,8 +43,11 @@ class MeanShift(object):
         ret, self.track_window = cv2.meanShift(dst, self.track_window, self.term_crit)
 
         # Draw it on image
-        x, y, w, h = self.track_window
-        cv2.rectangle(frame, (x, y), (x+w, y+h), 255, 2)
+        (c, r, w, h) = self.track_window
+        (x1, y1) = (c, r)
+        (x2, y2) = (c+w, r+h)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+        frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
         return frame
 
 
@@ -50,22 +55,36 @@ def test_mean_shift(test_filename):
     # Get the video used for the test.
     stream = cv2.VideoCapture(test_filename)
     (ret, init_frame) = stream.read()
+    clone_init_frame = init_frame.copy()
 
-    # # Usingthe first frame, draw a bounding box with mouse clicks.
-    # root = tk.Tk()
-    # vertex_frame = tk.Frame(root)
-    # init_frame = cv2.cvtColor(init_frame, cv2.COLOR_BGR2RGB)
-    # pil_frame = Image.fromarray(init_frame)
+    # Get the bounding box from the user.
+    box = bb.BoundingBox(init_frame)
+    cv2.namedWindow("Test")
+    cv2.setMouseCallback("Test", box.click_and_bound)
 
-    # photo_frame = ImageTk.PhotoImage(pil_frame)
-    # cam_label = tk.Label(vertex_frame, image=photo_frame)
-    # cam_label.image = photo_frame
-    # cam_label.pack()
-    # root.mainloop()
+    # Display the image and wait for a keypress.
+    while True:
+        cv2.imshow("Test", init_frame)
+        key = cv2.waitKey()
+        bound = box.get_bounding_box()
+        if box.get_bounding_box() is not None:
+            cv2.rectangle(init_frame, bound[0], bound[1], (0, 0, 255), 2)
+            cv2.imshow("Test", init_frame)
 
-    mean_shift = MeanShift(init_frame, (500, 500), (50, 50))
+        # if the 'r' key is pressed, reset the cropping region.
+        if key == ord("r"):
+            init_frame = clone_init_frame.copy()
+
+        if key == ord('q'):
+            break
+
+    cv2.destroyWindow('Test')
+    bound = box.get_bounding_box()
+
+    mean_shift = MeanShift(init_frame, bound[0], bound[1])
     while stream.isOpened():
         (ret, frame) = stream.read()
+        cv2.waitKey(0)
         if ret:
             mean_shift_frame = mean_shift.extract(frame)
             if mean_shift_frame is not None:
@@ -80,12 +99,8 @@ def test_mean_shift(test_filename):
 
 
 def main():
-    test_filename = '../../samples/test_arizona2.mp4'
+    test_filename = '../../samples/test_nalgene.mov'
     test_mean_shift(test_filename)
-
 
 if __name__ == '__main__':
     main()
-
-
-
