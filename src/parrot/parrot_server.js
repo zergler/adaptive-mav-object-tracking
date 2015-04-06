@@ -9,37 +9,9 @@ console.log(':: Connecting to Parrot client.');
 
 // Maybe specify frame rate and image size...
 var client  = arDrone.createClient();
-var pngPort = 9001;
 var cmdPort = 9000;
 
-// PNG stream from the drone.
-console.log(':: Getting PNG stream from Parrot.')
-var pngStream = arDrone.createClient().getPngStream();
-var lastPng;
-pngStream
-    .on('error', console.log)
-    .on('data', function(pngBuffer) {
-        lastPng = pngBuffer;
-    });
-
-// Server that serves incoming png images onto port 9000.
-console.log(':: Creating http server for serving received PNG stream.');
-var pngServer = http.createServer(function(req, res) {
-    if (!lastPng) {
-        res.writeHead(503);
-        res.end('Did not receive any png data yet.');
-        return;
-    }
-    res.writeHead(200, {'Content-Type': 'image/png'});
-    res.end(lastPng);
-});
-var camera = 0; // Whether or not to access front or bottom camera.
-
-pngServer.listen(pngPort, function() {
-    console.log(':: Serving PNG stream on port ' + pngPort + '.');
-});
-
-// Server tjat listens for incoming commands for the drone.
+// Server that listens for incoming commands for the drone.
 console.log(':: Creating socket net server for receiving commands.');
 var cmdServer = net.createServer(function(socket) {
     // The socket has been opened.
