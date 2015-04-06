@@ -32,8 +32,8 @@ class BoundingBox(object):
                     self.cropping = False
 
                     # Draw a rectangle around the region of interest.
-                    # cv2.rectangle(self.image2bound, self.ref[0], self.ref[1], (0, 255, 0), 2)
-                    # cv2.imshow("Test of Bounding Box Tool", self.image2bound)
+                    #cv2.rectangle(self.image2bound, self.ref[0], self.ref[1], (0, 255, 0), 2)
+                    #cv2.imshow("Test of Bounding Box Tool", self.image2bound)
 
     def get_bounding_box(self):
         if self.ref is not None:

@@ -9,6 +9,11 @@ import camera
 import controller
 import receiver
 
+# Igor's modules.
+from feature_extraction import hough_transform
+from feature_extraction import optical_flow
+from tracking import cam_shift
+
 
 class Error(Exception):
     """ Base exception for the module.
@@ -55,7 +60,7 @@ class Parrot(object):
         self.active_camera = self.cameras['FRONT']
 
     def init_network(self):
-        #subprocess.call(['./drone-net.sh', ''])
+        # subprocess.call(['./drone-net.sh', ''])
         pass
 
     def init_camera(self, parrot_address, video_port):
@@ -77,6 +82,14 @@ class Parrot(object):
         """ Initializes the receiver thread.
         """
         pass
+
+    def init_feature_extract(self, init_image):
+        """ Initializes feature extraction.
+        """
+        # Make sure camera is initialized.
+        self.feat_opt_flow = optical_flow.OpticalFlow(self.camera.get_image())
+        self.feat_hough_trans = hough_transform.HoughTransform()
+        self.feat_cam_shift = cam_shift.CamShift(self.camera.get_image(), (200, 200), (50, 50))
 
     def get_navdata(self, query):
         """ Receives the drone's navigation data specified in the query.

@@ -5,15 +5,15 @@
 
 import argparse
 import sys
+import time
 
+import cv2
 import Tkinter as tk
 from PIL import ImageTk, Image
 
 # Igor's modules.
 import parrot.parrot
-import feature_extraction.optical_flow as opt_flow
-import feature_extraction.hough_transform as hough_trans
-import tracking.mean_shift as mean_sh
+import parrot.tracking
 
 
 class Error(Exception):
@@ -125,6 +125,50 @@ class FlyTool(object):
         self.drone.init_network()
         self.drone.init_camera(self.drone.address, self.drone.ports['VIDEO'])
         self.drone.init_controller()
+        time.sleep(5)  # this sucks, replace it with something better
+
+        frame = self.drone.camera.get_image()
+        self.drone.init_feature_extract(frame)
+
+        # Get the ROI from the user.
+        # bound_box = parrot.tracking.bounding_box.BoundingBox(frame)
+        # clone = frame.copy()
+        # cv2.namedWindow("Grab ROI")
+        # cv2.setMouseCallback("Grab ROI", bound_box.click_and_bound)
+        # while True:
+        #     cv2.imshow("Grab ROI", frame)
+        #     key = cv2.waitKey()
+        #     bound = bound_box.get_bounding_box()
+
+        #     if bound_box.get_bounding_box() is not None:
+        #         # Grab the values from the vertices.
+        #         r1 = bound[0][1]
+        #         c1 = bound[0][0]
+        #         c2 = bound[1][0]
+        #         r2 = bound[1][1]
+        #         h = abs(r1 - r2)
+        #         w = abs(c1 - c2)
+        #         r = min(r1, r2)
+        #         c = min(c1, c2)
+
+        #         # Set up the ROI for tracking.
+        #         # roi = frame[r:r+h, c:c+w]
+        #         # cv2.imshow('sdfdsf', roi)
+        #         # cv2.waitKey()
+
+        #         cv2.rectangle(frame, bound[0], bound[1], (0, 0, 255), 2)
+        #         cv2.imshow("Grab ROI", frame)
+
+        #     # if the 'r' key is pressed, reset the cropping region.
+        #     if key == ord('r'):
+        #         frame = clone.copy()
+
+        #     if key == ord('n'):
+        #         frame = self.drone.camera.get_image()
+        #         clone = frame.copy()
+
+        #     if key == ord('q'):
+        #         break
 
         if self.gui:
             self.gui = self.create_gui()
@@ -240,7 +284,8 @@ class FlyTool(object):
             self.root.after(300, self.update_video)
             frame = self.fly.drone.camera.get_image()
             if frame is not None:
-                pil_frame = Image.fromarray(frame)
+                image_hough = self.fly.drone.feat_opt_flow.extract(frame)
+                pil_frame = Image.fromarray(image_hough)
                 pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)
                 photo_frame = ImageTk.PhotoImage(pil_frame)
                 self.cam_label.config(image=photo_frame)

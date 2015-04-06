@@ -22,10 +22,10 @@ class CamShift(object):
         r = min(r1, r2)
         c = min(c1, c2)
 
-        # setup initial location of window.
+        # Setup initial location of window.
         self.track_window = (c, r, w, h)
 
-        # set up the ROI for tracking.
+        # Set up the ROI for tracking.
         roi = init_frame[r:r+h, c:c+w]
         hsv_roi =  cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv_roi, np.array((0., 60., 32.)), np.array((180., 255., 255.)))
@@ -43,11 +43,9 @@ class CamShift(object):
         (ret, self.track_window) = cv2.CamShift(dst, self.track_window, self.term_crit)
 
         # Draw it on image.
-        (c, r, w, h) = self.track_window
-        (x1, y1) = (c, r)
-        (x2, y2) = (c+w, r+h)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
-        frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+        pts = np.int0(cv2.cv.BoxPoints(ret))
+        cv2.polylines(frame, [pts], True, (0, 255, 0), 2)
+        # frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
         return frame
 
 
@@ -99,7 +97,7 @@ def test_cam_shift(test_filename):
 
 
 def main():
-    test_filename = '../../samples/test_nalgene.mov'
+    test_filename = '../samples/test_nalgene.mov'
     test_cam_shift(test_filename)
 
 if __name__ == '__main__':
