@@ -5,7 +5,7 @@ import socket
 import threading
 
 
-class Error(Exception):
+class ControllerError(Exception):
     """ Base exception for the module.
     """
     def __init__(self, msg):
@@ -15,7 +15,12 @@ class Error(Exception):
         print(self.msg)
 
 
-class ConnectionError(Error):
+class ControllerInitError(ControllerError):
+    def __init__(self):
+        self.msg = 'Error: controller did not initialize succesfully.'
+
+
+class ControllerConnectionError(ControllerError):
     def __init__(self):
         self.msg = 'Error: connection to drone refused.'
 
@@ -25,23 +30,25 @@ class Controller(threading.Thread):
     """
     def __init__(self):
         threading.Thread.__init__(self)
+        self.controlling = False
 
     def run(self):
-        # Connect to the node js server.
-        # subprocess.call(['./parrot_server.js', ''])
         try:
             self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.cmd_soc.connect(('localhost', 9000))
+            self.controlling = True
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
-                ConnectionError().print_error()
+                self.controlling = False
+                ControllerConnectionError().print_error()
 
     def send_cmd(self, cmd):
         try:
             self.cmd_soc.send(cmd)
         except socket.error as e:
             if e[0] == errno.EPIPE:
-                ConnectionError().print_error()
+                self.controlling = False
+                ControllerConnectionError().print_error()
 
 
 def test_controller():

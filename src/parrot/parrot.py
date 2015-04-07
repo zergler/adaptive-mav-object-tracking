@@ -2,20 +2,20 @@
 
 import cv2
 import json
-import subprocess
+import time
 
 # Local modules.
 import camera
 import controller
-import receiver
 
 # Igor's modules.
 from feature_extraction import hough_transform
 from feature_extraction import optical_flow
+from tracking import bounding_box
 from tracking import cam_shift
 
 
-class Error(Exception):
+class ParrotError(Exception):
     """ Base exception for the module.
     """
     def __init__(self, msg):
@@ -23,11 +23,6 @@ class Error(Exception):
 
     def print_error(self):
         print(self.msg)
-
-
-class ArgumentError(Error):
-    def __init__(self, arg):
-        self.msg = "Error: argument '%s' is invalid." % arg
 
 
 class Parrot(object):
@@ -58,18 +53,25 @@ class Parrot(object):
             'CUSTOM': 4
         }
         self.active_camera = self.cameras['FRONT']
+        self.init_image = None
 
-    def init_network(self):
-        # subprocess.call(['./drone-net.sh', ''])
-        pass
-
-    def init_camera(self, parrot_address, video_port):
+    def init_camera(self):
         """ Initializes the camera thread.
         """
-        camera_address = 'tcp://' + parrot_address + ':' + str(video_port)
+        camera_address = 'tcp://' + self.address + ':' + str(self.ports['VIDEO'])
         self.camera = camera.Camera(camera_address)
         self.camera.daemon = True
         self.camera.start()
+
+        # Wait until the camera thread is initialized.
+        timeout = time.time() + 15  # max wait is 15 seconds
+        while True:
+            if self.camera.capturing:
+                break
+            if time.time() > timeout and not self.camera.capturing:
+                raise camera.CameraInitError()
+
+        self.init_image = self.camera.get_image()
 
     def init_controller(self):
         """ Initializes the controller thread.
@@ -78,18 +80,39 @@ class Parrot(object):
         self.controller.daemon = True
         self.controller.start()
 
-    def init_receiver(self, parrot_address, navdata_port):
+        # Wait until the controller thread is initialized.
+        timeout = time.time() + 15  # max wait is 15 seconds
+        while True:
+            if self.controller.controlling:
+                break
+            if time.time() > timeout and not self.controller.controlling:
+                raise controller.ControllerInitError()
+
+    def init_receiver(self):
         """ Initializes the receiver thread.
         """
         pass
 
-    def init_feature_extract(self, init_image):
-        """ Initializes feature extraction.
+    def init_feature_extract(self):
+        """ Initializes feature extraction. Make sure the camera is initialized
+            before calling this function.
         """
-        # Make sure camera is initialized.
-        self.feat_opt_flow = optical_flow.OpticalFlow(self.camera.get_image())
+        assert self.init_image is not None
+        self.feat_opt_flow = optical_flow.OpticalFlow(self.init_image)
         self.feat_hough_trans = hough_transform.HoughTransform()
-        self.feat_cam_shift = cam_shift.CamShift(self.camera.get_image(), (200, 200), (50, 50))
+
+    def init_tracking(self, bound_box):
+        """ Initializes tracking. Make sure the camera is initialized before
+            calling this function.
+        """
+        assert self.init_image is not None
+        if bound_box is None:
+            raise bounding_box.BoundingBoxError()
+        elif len(bound_box) != 2:
+            raise bounding_box.BoundingBoxError()
+        elif (len(bound_box[0]) != 2) or (len(bound_box[1]) != 2):
+            raise bounding_box.BoundingBoxError()
+        self.feat_cam_shift = cam_shift.CamShift(self.init_image, bound_box[0], bound_box[1])
 
     def get_navdata(self, query):
         """ Receives the drone's navigation data specified in the query.
@@ -180,15 +203,13 @@ def test_parrot():
     """
     pdb.set_trace()
     parrot = Parrot()
-    parrot.init_network()
-    parrot.init_camera(parrot.address, parrot.ports['VIDEO'])
+    parrot.init_camera()
 
     while True:
         cv2.imshow('Image', parrot.camera.get_image())
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
-
 
 if __name__ == '__main__':
     import pdb

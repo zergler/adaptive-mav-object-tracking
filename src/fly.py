@@ -5,18 +5,15 @@
 
 import argparse
 import sys
-import time
 
-import cv2
 import Tkinter as tk
 from PIL import ImageTk, Image
 
 # Igor's modules.
-import parrot.parrot
-import parrot.tracking
+import parrot
 
 
-class Error(Exception):
+class FlyToolError(Exception):
     """ Base exception for the module.
     """
     def __init__(self, msg):
@@ -26,19 +23,9 @@ class Error(Exception):
         print(self.msg)
 
 
-class ArgumentError(Error):
+class FlyToolArgumentError(Error):
     def __init__(self, arg):
         self.msg = "Error: argument '%s' is invalid." % arg
-
-
-class ConnectionError(Error):
-    def __init__(self):
-        self.msg = 'Error: connection to drone refused.'
-
-
-class CameraError(Error):
-    def __init__(self):
-        self.msg = 'Error: cannot get image stream from drone.'
 
 
 class FlyToolArgs(object):
@@ -78,7 +65,7 @@ class FlyToolArgs(object):
                 self.args.stream = self.args.stream.split(',')
                 # Make sure that the file can be accessed with correct permissions.
             except ValueError:
-                raise ArgumentError(self.args.record)
+                raise FlyToolArgumentError(self.args.record)
 
         self.parse_stream()
 
@@ -122,57 +109,45 @@ class FlyTool(object):
         # Create the drone object.
         self.speed = 0.3
         self.drone = parrot.parrot.Parrot()
-        self.drone.init_network()
-        self.drone.init_camera(self.drone.address, self.drone.ports['VIDEO'])
-        self.drone.init_controller()
-        time.sleep(5)  # this sucks, replace it with something better
-
-        frame = self.drone.camera.get_image()
-        self.drone.init_feature_extract(frame)
-
-        # Get the ROI from the user.
-        # bound_box = parrot.tracking.bounding_box.BoundingBox(frame)
-        # clone = frame.copy()
-        # cv2.namedWindow("Grab ROI")
-        # cv2.setMouseCallback("Grab ROI", bound_box.click_and_bound)
-        # while True:
-        #     cv2.imshow("Grab ROI", frame)
-        #     key = cv2.waitKey()
-        #     bound = bound_box.get_bounding_box()
-
-        #     if bound_box.get_bounding_box() is not None:
-        #         # Grab the values from the vertices.
-        #         r1 = bound[0][1]
-        #         c1 = bound[0][0]
-        #         c2 = bound[1][0]
-        #         r2 = bound[1][1]
-        #         h = abs(r1 - r2)
-        #         w = abs(c1 - c2)
-        #         r = min(r1, r2)
-        #         c = min(c1, c2)
-
-        #         # Set up the ROI for tracking.
-        #         # roi = frame[r:r+h, c:c+w]
-        #         # cv2.imshow('sdfdsf', roi)
-        #         # cv2.waitKey()
-
-        #         cv2.rectangle(frame, bound[0], bound[1], (0, 0, 255), 2)
-        #         cv2.imshow("Grab ROI", frame)
-
-        #     # if the 'r' key is pressed, reset the cropping region.
-        #     if key == ord('r'):
-        #         frame = clone.copy()
-
-        #     if key == ord('n'):
-        #         frame = self.drone.camera.get_image()
-        #         clone = frame.copy()
-
-        #     if key == ord('q'):
-        #         break
+        try:
+            self.drone.init_camera()
+            self.drone.init_controller()
+            self.drone.init_feature_extract()
+            self.drone.init_tracking()
+        except Exception:
+            pass
 
         if self.gui:
             self.gui = self.create_gui()
             self.gui.run()
+
+    def get_object_to_track(self):
+        """ Gets the object to track from the user.
+        """
+        # Get the ROI from the user.
+        bound_box = parrot.tracking.bounding_box.BoundingBox(frame)
+        clone = frame.copy()
+        cv2.namedWindow("Grab ROI")
+        cv2.setMouseCallback("Grab ROI", bound_box.click_and_bound)
+        while True:
+            cv2.imshow("Grab ROI", frame)
+            key = cv2.waitKey()
+            bound = bound_box.get_bounding_box()
+
+            if bound_box.get_bounding_box() is not None:
+                cv2.rectangle(frame, bound[0], bound[1], (0, 0, 255), 2)
+                cv2.imshow("Grab ROI", frame)
+
+            # if the 'r' key is pressed, reset the cropping region.
+            if key == ord('r'):
+                frame = clone.copy()
+
+            if key == ord('n'):
+                frame = self.drone.camera.get_image()
+                clone = frame.copy()
+
+            if key == ord('q'):
+                break
 
     def create_gui(self):
         """ Factory method that builds the GUI and passes the fly object to it.
@@ -305,7 +280,7 @@ def main():
     except KeyboardInterrupt:
         print('\nClosing.')
         sys.exit(1)
-    except ArgumentError as e:
+    except FlyToolArgumentError as e:
         e.print_error()
         sys.exit(1)
 

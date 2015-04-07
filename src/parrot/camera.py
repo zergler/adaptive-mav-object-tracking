@@ -4,6 +4,21 @@ import cv2
 import threading
 
 
+class CameraError(Exception):
+    """ Base exception for the module.
+    """
+    def __init__(self, msg):
+        self.msg = 'Error: %s' % msg
+
+    def print_error(self):
+        print(self.msg)
+
+
+class CameraInitError(CameraError):
+    def __init__(self, arg):
+        self.msg = 'Error: camera did not initialize succesfully.'
+
+
 class Camera(threading.Thread):
     """ Encapsulates the camera on the AR Parrot Drone 2.0.
 
@@ -33,6 +48,17 @@ class Camera(threading.Thread):
 
     def get_image(self):
         return self.image
+
+    def get_windows(self, image, window_size, percent_overlap):
+        """ Gets the windows of the image.
+
+            Descritizes the image into a bunch of cells with a size given by
+            window_size, a 2-tuple specifying the size of the x and y
+            descritizations. The percentage of each image which overlaps its
+            neighbors (not counting the border cells) is given by
+            percent_overlap.
+        """
+        # Check for errors in the passed parameters.
 
 
 def test_camera():

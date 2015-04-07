@@ -7,6 +7,16 @@
 import cv2
 
 
+class BoundingBoxError(Exception):
+    """ Base exception for the module.
+    """
+    def __init__(self, msg):
+        self.msg = 'Error: bounding box is invalid.'
+
+    def print_error(self):
+        print(self.msg)
+
+
 class BoundingBox(object):
     """ Bounding box tool.
         Code credit: Adrian Rosebrock
