@@ -61,8 +61,7 @@ class Camera(threading.Thread):
             Descritizes the image into a bunch of cells with a size given by
             window_size, a 2-tuple specifying the size of the x and y
             descritizations. The percentage of each image which overlaps its
-            neighbors (not counting the border cells) is given by
-            percent_overlap. Ignores the borders.
+            neighbors is given by percent_overlap.
         """
         # Check for errors in the passed parameters.
         if image is None:
@@ -74,14 +73,11 @@ class Camera(threading.Thread):
         if not (0 <= percent_overlap <= 3):
             raise CameraWindowError()
 
-        # Get the size of the image.
         (y, x, d) = image.shape
-
-        # Get the length of a non-overlapping bin.
         length = (x/window_size[0], y/window_size[1])
         overlap = (int(math.floor(length[0]*percent_overlap/4)), int(math.floor(length[1]*percent_overlap/4)))
 
-        # Matrix that will hold the images.
+        # Matrix that will hold the window sizes.
         windows = [[None for z in range(0, window_size[0])] for z in range(0, window_size[1])]
         for r in range(0, window_size[1]):
             for c in range(0, window_size[0]):
