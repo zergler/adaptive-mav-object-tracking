@@ -109,7 +109,8 @@ var recvServer = net.createServer(function(socket) {
         try {
             var query = JSON.parse(data);
             if (query === 'GET') {
-                console.log('Received query to send navigation data.')
+                console.log('Received query to send navigation data.');
+                socket.write(client.navdata)
             }
         }
         catch (e) {

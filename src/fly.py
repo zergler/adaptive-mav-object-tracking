@@ -102,6 +102,7 @@ class FlyTool(object):
                 print(':: GUI flag set.')
             print(':: Verbosity set to %d.' % self.verb)
             print(':: Accessing controller server at: localhost:9000.')
+            print(':: Accessing navigation data server at : localhost:9001.')
             print(':: Accessing camera stream server at: tcp://192.168.1.1:5555.')
             if self.stream:
                 # if self.stream[0]:
@@ -152,7 +153,7 @@ class FlyTool(object):
                 frame = clone.copy()
 
             if key == ord('n'):
-                frame = self.drone.image_queue.get()
+                frame = self.drone.get_image()
                 clone = frame.copy()
 
             if key == ord('q'):
@@ -266,7 +267,7 @@ class FlyTool(object):
 
         def update_video(self):
             self.root.after(500, self.update_video)
-            frame = self.fly.drone.image
+            frame = self.fly.drone.get_image()
             if frame is not None:
                 pil_frame = Image.fromarray(frame)
                 pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)

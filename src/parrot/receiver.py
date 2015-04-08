@@ -64,11 +64,11 @@ class Receiver(threading.Thread):
         data = ''
         begin = time.time()
         while True:
-            # If you got some data, then break after wait sec
+            # If you got some data, then break after wait sec.
             if total_data and ((time.time() - begin) > timeout):
                 break
 
-            # If you got no data at all, wait a little longer
+            # If you got no data at all, wait a little longer.
             elif time.time() - begin > timeout*2:
                 break
             data = the_socket.recv(self.bufsize)
@@ -78,6 +78,11 @@ class Receiver(threading.Thread):
             else:
                 time.sleep(0.1)
         navdata = ''.join(total_data)
+
+        # We only care about the most recent navdata so remove the outdated
+        # data from the queue.
+        if not self.queue.empty():
+            self.queue.get()
         self.queue.put(navdata)
 
 

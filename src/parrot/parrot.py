@@ -47,7 +47,7 @@ class Parrot(object):
         self.ports = {
             'NAVDATA': 5554,
             'VIDEO':   5555,
-            'CMD': 5556
+            'CMD':     5556
         }
         self.cameras = {
             'FRONT':  0,
@@ -55,11 +55,17 @@ class Parrot(object):
             'CUSTOM': 4
         }
         self.active_camera = self.cameras['FRONT']
-        self.image = None
 
         # Feature extraction parameters.
         self.window_size = (15, 7)
         self.overlap = 0.5
+
+        # Where we get our features.
+        self.image = None
+        self.navdata = None
+
+        # The method of tracking we are going to use.
+        self.tracking = None
 
     def init_camera(self):
         """ Initializes the camera thread.
@@ -70,6 +76,7 @@ class Parrot(object):
         self.camera.daemon = True
         self.camera.start()
 
+        # Grab the initial image so we know the camera is initialized.
         self.image = self.image_queue.get()
 
     def init_controller(self):
@@ -87,6 +94,9 @@ class Parrot(object):
         self.receiver = receiver.Receiver(nav_queue)
         self.receiver.daemon = True
         self.receiver.start()
+
+        # Grab the initial nav data so we know the receiver is initialized.
+        self.navdata = self.nav_queue.get()
 
     def init_feature_extract(self):
         """ Initializes feature extraction. Make sure the camera is initialized
@@ -114,12 +124,18 @@ class Parrot(object):
             raise bounding_box.BoundingBoxError()
         elif (len(bound_box[0]) != 2) or (len(bound_box[1]) != 2):
             raise bounding_box.BoundingBoxError()
-        self.feat_cam_shift = cam_shift.CamShift(self.image, bound_box[0], bound_box[1])
+        self.tracking = cam_shift.CamShift(self.image, bound_box[0], bound_box[1])
 
-    def get_features(self):
-        """ Gets the features of the images from the camera.
+    def get_visual_features(self):
+        """ Gets the features of the images from the camera. Make sure the
+            camera and feature extraction are initialized before calling this
+            function. Allow the calling module to set the rate at which images
+            are received from the camera thread.
         """
-        self.image = self.image_queue.get()
+        assert self.image is not None
+        assert self.feat_opt_flow is not None
+        assert self.feat_hough_trans is not None
+
         windows = camera.Camera.get_windows(self.image, self.window_size, self.overlap)
         feats = np.array([])
         for r in range(0, self.window_size[1]):
@@ -131,10 +147,30 @@ class Parrot(object):
                 feats = np.vstack((feats, flow_feats)) if feats.size else flow_feats
         return np.transpose(feats)
 
-    def get_navdata(self, query):
-        """ Receives the drone's navigation data specified in the query.
+    def get_nav_features(self):
+        """ Gets the features from the navigation data of the drone. Make sure
+            the receiver is initialized before calling this function. Allow the
+            calling module to set the rate at which navigation data is received
+            from the receiver thread.
         """
-        pass
+        assert self.navdata is not None
+
+        return None
+
+    def get_navdata(self):
+        """ Receives the most recent navigation data from the drone. Calling
+            module should call this function in a loop to get navigation data
+            continuously.
+        """
+        self.navdata = self.nav_queue.get()
+        return self.navdata
+
+    def get_image(self):
+        """ Receives the most recent image from the drone. Calling module should
+            call this function in a loop to get images continuously.
+        """
+        self.image = self.image_queue.get()
+        return self.image
 
     def exit(self):
         """ Before exiting, safely lands the drone and closes all processes.
@@ -226,6 +262,7 @@ def _test_parrot():
     while True:
         image = parrot.image_queue.get()
         features = parrot.get_features()
+        navdata = parrot.get_navdata()
         with open('feat.dat', 'a') as out:
             np.savetxt(out, features)
 
