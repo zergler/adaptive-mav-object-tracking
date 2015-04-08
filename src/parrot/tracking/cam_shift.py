@@ -49,7 +49,9 @@ class CamShift(object):
         return frame
 
 
-def test_cam_shift(test_filename):
+def _test_cam_shift():
+    test_filename = '../../../samples/test_nalgene.mov'
+
     # Get the video used for the test.
     stream = cv2.VideoCapture(test_filename)
     (ret, init_frame) = stream.read()
@@ -86,7 +88,7 @@ def test_cam_shift(test_filename):
         if ret:
             cam_shift_frame = cam_shift.extract(frame)
             if cam_shift_frame is not None:
-                cv2.imshow("frame", cam_shift_frame)
+                cv2.imshow("frame", cv2.resize(cam_shift_frame, (0, 0), fx=0.5, fy=0.5))
         else:
             stream.release()
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -96,9 +98,5 @@ def test_cam_shift(test_filename):
     cv2.destroyAllWindows()
 
 
-def main():
-    test_filename = '../samples/test_nalgene.mov'
-    test_cam_shift(test_filename)
-
 if __name__ == '__main__':
-    main()
+    _test_cam_shift()

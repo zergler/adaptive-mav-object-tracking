@@ -11,9 +11,9 @@ class Receiver(multiprocessing.Process):
         self.address = address
 
 
-def test_receiver():
+def _test_receiver():
     pdb.set_trace()
 
 if __name__ == '__main__':
     import pdb
-    test_receiver()
+    _test_receiver()

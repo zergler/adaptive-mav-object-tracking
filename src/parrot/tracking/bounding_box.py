@@ -31,19 +31,15 @@ class BoundingBox(object):
             # If the left mouse button was clicked, record the starting (x, y)
             # coordinates and indicate that the operation is active.
             if event == cv2.EVENT_LBUTTONDOWN:
-                    self.ref = [(x, y)]
-                    self.active = True
+                self.ref = [(x, y)]
+                self.active = True
 
             # Check to see if the left mouse button was released.
             elif event == cv2.EVENT_LBUTTONUP:
-                    # Record the ending (x, y) coordinates and indicate that
-                    # the operation is complete.
-                    self.ref.append((x, y))
-                    self.cropping = False
-
-                    # Draw a rectangle around the region of interest.
-                    #cv2.rectangle(self.image2bound, self.ref[0], self.ref[1], (0, 255, 0), 2)
-                    #cv2.imshow("Test of Bounding Box Tool", self.image2bound)
+                # Record the ending (x, y) coordinates and indicate that
+                # the operation is complete.
+                self.ref.append((x, y))
+                self.cropping = False
 
     def get_bounding_box(self):
         if self.ref is not None:
@@ -51,47 +47,53 @@ class BoundingBox(object):
                 return self.ref
         return None
 
-    def _test_bounding_box(self):
-        """ Tests the class.
-        """
-        clone = self.image2bound.copy()
-        cv2.namedWindow("Test of Bounding Box Tool")
-        cv2.setMouseCallback("Test of Bounding Box Tool", self.click_and_bound)
 
-        while True:
-                # Display the image and wait for a keypress.
-                cv2.imshow("Test of Bounding Box Tool", self.image2bound)
-                key = cv2.waitKey(1) & 0xFF
-
-                # if the 'r' key is pressed, reset the cropping region.
-                if key == ord("r"):
-                    self.image2bound = clone.copy()
-
-                # if the 'q' key is pressed, break from the loop
-                elif key == ord("q"):
-                    break
-
-        # if there are two reference points, then crop the region of interest
-        # from the image and display it
-        # if len(self.ref) == 2:
-        #         roi = clone[self.ref[0][1]:self.ref[1][1], self.ref[0][0]:self.ref[1][0]]
-        #         cv2.imshow("ROI", roi)
-        #         cv2.waitKey(0)
-
-        # close all open windows
-        cv2.destroyAllWindows()
-
-
-def main():
-    test_filename = '../../samples/test_nalgene.mov'
+def _test_bounding_box():
+    pdb.set_trace()
+    test_filename = '../../../samples/test_nalgene.mov'
 
     # Get the video used for the test.
     stream = cv2.VideoCapture(test_filename)
     (ret, init_image) = stream.read()
     test_image = cv2.resize(init_image, (0, 0), fx=0.5, fy=0.5)
-    bb = BoundingBox(test_image)
-    bb._test_bounding_box()
+    bound_box = BoundingBox(test_image)
+
+    clone = test_image.copy()
+    cv2.namedWindow("Test of Bounding Box Tool")
+    cv2.setMouseCallback("Test of Bounding Box Tool", bound_box.click_and_bound)
+
+    while True:
+            # Display the image and wait for a keypress.
+            cv2.imshow("Test of Bounding Box Tool", test_image)
+            key = cv2.waitKey(1) & 0xFF
+
+            # Draw a rectangle around the region of interest.
+            if bound_box.ref is not []:
+                if len(bound_box.ref) == 2:
+                    bb_test_image = test_image.copy()
+                    cv2.rectangle(bb_test_image, bound_box.ref[0], bound_box.ref[1], (0, 255, 0), 2)
+                    cv2.imshow("Test of Bounding Box Tool", bb_test_image)
+                    key = cv2.waitKey(0)
+
+            # if the 'r' key is pressed, reset the cropping region.
+            if key == ord("r"):
+                test_image = clone.copy()
+
+            # if the 'q' key is pressed, break from the loop
+            elif key == ord("q"):
+                break
+
+    # if there are two reference points, then crop the region of interest
+    # from the image and display it
+    # if len(bound_box.ref) == 2:
+    #         roi = clone[bound_box.ref[0][1]:bound_box.ref[1][1], bound_box.ref[0][0]:bounx_box.ref[1][0]]
+    #         cv2.imshow("ROI", roi)
+    #         cv2.waitKey(0)
+
+    # Close all open windows.
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
-    main()
+    import pdb
+    _test_bounding_box()

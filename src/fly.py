@@ -4,13 +4,17 @@
 """
 
 import argparse
+import numpy as np
 import sys
+
+import pdb
 
 import Tkinter as tk
 from PIL import ImageTk, Image
 
 # Igor's modules.
-import parrot
+from parrot import parrot
+from parrot import tracking
 
 
 class FlyToolError(Exception):
@@ -23,7 +27,7 @@ class FlyToolError(Exception):
         print(self.msg)
 
 
-class FlyToolArgumentError(Error):
+class FlyToolArgumentError(FlyToolError):
     def __init__(self, arg):
         self.msg = "Error: argument '%s' is invalid." % arg
 
@@ -108,12 +112,11 @@ class FlyTool(object):
 
         # Create the drone object.
         self.speed = 0.3
-        self.drone = parrot.parrot.Parrot()
+        self.drone = parrot.Parrot()
         try:
             self.drone.init_camera()
             self.drone.init_controller()
             self.drone.init_feature_extract()
-            self.drone.init_tracking()
         except Exception:
             pass
 
@@ -121,11 +124,17 @@ class FlyTool(object):
             self.gui = self.create_gui()
             self.gui.run()
 
+    def get_features(self):
+        features = self.drone.get_features()
+        with open('feat.dat', 'a') as out:
+            np.savetxt(out, features)
+            out.write('\n')
+
     def get_object_to_track(self):
         """ Gets the object to track from the user.
         """
         # Get the ROI from the user.
-        bound_box = parrot.tracking.bounding_box.BoundingBox(frame)
+        bound_box = tracking.bounding_box.BoundingBox(frame)
         clone = frame.copy()
         cv2.namedWindow("Grab ROI")
         cv2.setMouseCallback("Grab ROI", bound_box.click_and_bound)
@@ -143,7 +152,7 @@ class FlyTool(object):
                 frame = clone.copy()
 
             if key == ord('n'):
-                frame = self.drone.camera.get_image()
+                frame = self.drone.image_queue.get()
                 clone = frame.copy()
 
             if key == ord('q'):
@@ -256,23 +265,21 @@ class FlyTool(object):
                 self.fly.drone.stop()
 
         def update_video(self):
-            self.root.after(300, self.update_video)
-            frame = self.fly.drone.camera.get_image()
+            self.root.after(500, self.update_video)
+            frame = self.fly.drone.image
             if frame is not None:
-                image_hough = self.fly.drone.feat_opt_flow.extract(frame)
-                pil_frame = Image.fromarray(image_hough)
+                pil_frame = Image.fromarray(frame)
                 pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)
                 photo_frame = ImageTk.PhotoImage(pil_frame)
                 self.cam_label.config(image=photo_frame)
                 self.cam_label.image = photo_frame
 
+                # Get the features and append to the data file.
+                self.fly.get_features()
+
 
 def main():
     try:
-        DEBUG = 0
-        if DEBUG:
-            pdb.set_trace()
-
         fa = FlyToolArgs()
         fa.parse()
         f = FlyTool(fa.args.gui, fa.args.verb, fa.args.stream)

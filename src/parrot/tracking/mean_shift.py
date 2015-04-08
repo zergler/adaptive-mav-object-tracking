@@ -51,7 +51,9 @@ class MeanShift(object):
         return frame
 
 
-def test_mean_shift(test_filename):
+def _test_mean_shift():
+    test_filename = '../../../samples/test_nalgene.mov'
+
     # Get the video used for the test.
     stream = cv2.VideoCapture(test_filename)
     (ret, init_frame) = stream.read()
@@ -98,9 +100,5 @@ def test_mean_shift(test_filename):
     cv2.destroyAllWindows()
 
 
-def main():
-    test_filename = '../../samples/test_nalgene.mov'
-    test_mean_shift(test_filename)
-
 if __name__ == '__main__':
-    main()
+    _test_mean_shift()

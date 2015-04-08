@@ -24,6 +24,8 @@ class OpticalFlow(object):
     """
     def __init__(self, init_frame):
         # Parameters of the camera/images.
+        (r, c, _) = init_frame.shape
+        self.shape = (r, c)
         self.prev_gray = cv2.cvtColor(init_frame, cv2.COLOR_BGR2GRAY)
 
         # Parameters for farneback optical flow.
@@ -130,7 +132,7 @@ def _test_optical_flow_extract(stream, opt_flow):
 
 
 def _test_optical_flow_get_image(stream, opt_flow):
-    # Manually make sure that the returned image 'look right'.
+    # Manually make sure that the returned images look right.
     while stream.isOpened():
         (ret, frame) = stream.read()
         assert ret is True

@@ -51,9 +51,9 @@ class Controller(threading.Thread):
                 ControllerConnectionError().print_error()
 
 
-def test_controller():
+def _test_controller():
     pdb.set_trace()
 
 if __name__ == '__main__':
     import pdb
-    test_controller()
+    _test_controller()
