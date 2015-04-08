@@ -75,14 +75,18 @@ class Parrot(object):
     def init_controller(self):
         """ Initializes the controller thread.
         """
-        self.controller = controller.Controller()
+        self.cmd_queue = Queue.Queue()
+        self.controller = controller.Controller(cmd_queue)
         self.controller.daemon = True
         self.controller.start()
 
     def init_receiver(self):
         """ Initializes the receiver thread.
         """
-        pass
+        self.nav_queue = Queue.Queue()
+        self.receiver = receiver.Receiver(nav_queue)
+        self.receiver.daemon = True
+        self.receiver.start()
 
     def init_feature_extract(self):
         """ Initializes feature extraction. Make sure the camera is initialized
@@ -90,9 +94,10 @@ class Parrot(object):
         """
         assert self.image is not None
 
-        # Grab an example window from the initial image to feed the feature extractors.
+        # Grab an example window from the initial image to feed the feature
+        # extractors (use a non border window).
         windows = camera.Camera.get_windows(self.image, self.window_size, self.overlap)
-        small_image = self.image[windows[0][0][2]:windows[0][0][3], windows[0][0][0]:windows[0][0][1]]
+        small_image = self.image[windows[1][1][2]:windows[1][1][3], windows[1][1][0]:windows[1][1][1]]
 
         self.feat_opt_flow = optical_flow.OpticalFlow(small_image)
         self.feat_hough_trans = hough_transform.HoughTransform()
@@ -140,74 +145,74 @@ class Parrot(object):
         cmd = self.default_cmd.copy()
         cmd['L'] = True
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def takeoff(self):
         cmd = self.default_cmd.copy()
         cmd['T'] = True
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def stop(self):
         cmd = self.default_cmd.copy()
         cmd = self.default_cmd.copy()
         cmd['S'] = True
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def turn_left(self, speed):
         cmd = self.default_cmd.copy()
         cmd['R'] = -speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def turn_right(self, speed):
         cmd = self.default_cmd.copy()
         cmd['R'] = speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def fly_up(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Z'] = speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def fly_down(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Z'] = -speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def fly_forward(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Y'] = speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def fly_backward(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Y'] = -speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def fly_left(self, speed):
         cmd = self.default_cmd.copy()
         cmd['X'] = -speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def fly_right(self, speed):
         cmd = self.default_cmd.copy()
         cmd['X'] = speed
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
     def change_camera(self, camera):
         cmd['C'] = camera
         cmd = self.fly.default_cmd.copy()
         cmd_json = json.dumps(cmd)
-        self.controller.send_cmd(cmd_json)
+        self.cmd_queue.put(cmd_json)
 
 
 def _test_parrot():

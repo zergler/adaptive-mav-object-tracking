@@ -29,25 +29,23 @@ class Controller(threading.Thread):
     """ Handles the sending of commands to the drone.
     """
     def __init__(self):
-        threading.Thread.__init__(self)
-        self.controlling = False
+        threading.Thread.__init__(self, queue)
+        self.queue = queue
+        self.sps  # number of cmd sends per second (*not really*)
 
     def run(self):
         try:
             self.cmd_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.cmd_soc.connect(('localhost', 9000))
-            self.controlling = True
+
+            while True:
+                cmd = queue.get()
+                self.cmd_soc.send(cmd)
+
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
-                self.controlling = False
                 ControllerConnectionError().print_error()
-
-    def send_cmd(self, cmd):
-        try:
-            self.cmd_soc.send(cmd)
-        except socket.error as e:
             if e[0] == errno.EPIPE:
-                self.controlling = False
                 ControllerConnectionError().print_error()
 
 

@@ -10,6 +10,7 @@ console.log(':: Connecting to Parrot client.');
 // Maybe specify frame rate and image size...
 var client  = arDrone.createClient();
 var cmdPort = 9000;
+var recvPort = 9001;
 
 // Server that listens for incoming commands for the drone.
 console.log(':: Creating socket net server for receiving commands.');
@@ -18,7 +19,7 @@ var cmdServer = net.createServer(function(socket) {
     console.log('New connection from ' + socket.remoteAddress + ':' + socket.remotePort + '.');
 
     // This code will run when new data arives.
-    socket.on('data', function(data){
+    socket.on('data', function(data) {
         var query;
         try {
             var query = JSON.parse(data);
@@ -91,7 +92,40 @@ var cmdServer = net.createServer(function(socket) {
     });
 });
 
-// Start the server listening
+// Start the server listening.
 cmdServer.listen(cmdPort, function(){
-    console.log(':: Listening for commands on port ' + cmdPort + '.\n');
+    console.log(':: Listening for commands on port ' + cmdPort + '.');
+});
+
+// Server that listens for a 'GET' string and sends the drone's navigation data.
+console.log(':: Creating socket net server for sending navigation data.');
+var recvServer = net.createServer(function(socket) {
+    // The socket has been opened.
+    console.log('New connection from ' + socket.remoteAddress + ':' + socket.remotePort + '.');
+
+    // This code will run when new data arives.
+    socket.on('data', function(data) {
+        var query;
+        try {
+            var query = JSON.parse(data);
+            if (query === 'GET') {
+                console.log('Received query to send navigation data.')
+            }
+        }
+        catch (e) {
+            // Parsed query is not a valid json object.
+            console.log('Error: received query is not valid json.');
+        }
+
+    });
+
+    // This code will run when the connection closes.
+    socket.on('end', function() {
+        console.log('Closing connection with ' + socket.remoteAddress + ':' + socket.remotePort + '.');
+    });
+});
+
+// Start the server listening.
+recvServer.listen(recvPort, function(){
+    console.log(":: Listening for query to send navigation data on port " + recvPort + '.');
 });
