@@ -28,10 +28,9 @@ class ControllerConnectionError(ControllerError):
 class Controller(threading.Thread):
     """ Handles the sending of commands to the drone.
     """
-    def __init__(self):
-        threading.Thread.__init__(self, queue)
+    def __init__(self, queue):
+        threading.Thread.__init__(self)
         self.queue = queue
-        self.sps  # number of cmd sends per second (*not really*)
 
     def run(self):
         try:
@@ -39,7 +38,7 @@ class Controller(threading.Thread):
             self.cmd_soc.connect(('localhost', 9000))
 
             while True:
-                cmd = queue.get()
+                cmd = self.queue.get()
                 self.cmd_soc.send(cmd)
 
         except socket.error as e:
@@ -52,6 +51,36 @@ class Controller(threading.Thread):
 def _test_controller():
     pdb.set_trace()
 
+    cmd_queue = Queue.Queue()
+    controller = Controller(cmd_queue)
+    controller.daemon = True
+    controller.start()
+
+    cmd_default = {
+        'X': 0.0,
+        'Y': 0.0,
+        'R': 0.0,
+        'C': 0,
+        'T': False,
+        'L': False,
+        'S': False
+    }
+    cmd = cmd_default.copy()
+    cmd['T'] = True
+    cmd_json = json.dumps(cmd)
+    cmd_queue.put(cmd_json)
+
+    time.sleep(2)
+
+    cmd = cmd_default.copy()
+    cmd['L'] = True
+    cmd_json = json.dumps(cmd)
+    cmd_queue.put(cmd_json)
+
+
 if __name__ == '__main__':
     import pdb
+    import json
+    import time
+    import Queue
     _test_controller()

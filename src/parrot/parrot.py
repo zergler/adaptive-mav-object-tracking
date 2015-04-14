@@ -2,13 +2,14 @@
 
 import cv2
 import json
-import numpy as np
 import Queue
+import numpy as np
 
 
 # Local modules.
 import camera
 import controller
+import receiver
 
 # Igor's modules.
 from feature_extraction import hough_transform
@@ -83,7 +84,7 @@ class Parrot(object):
         """ Initializes the controller thread.
         """
         self.cmd_queue = Queue.Queue()
-        self.controller = controller.Controller(cmd_queue)
+        self.controller = controller.Controller(self.cmd_queue)
         self.controller.daemon = True
         self.controller.start()
 
@@ -91,7 +92,7 @@ class Parrot(object):
         """ Initializes the receiver thread.
         """
         self.nav_queue = Queue.Queue()
-        self.receiver = receiver.Receiver(nav_queue)
+        self.receiver = receiver.Receiver(self.nav_queue)
         self.receiver.daemon = True
         self.receiver.start()
 
@@ -99,10 +100,11 @@ class Parrot(object):
         self.navdata = self.nav_queue.get()
 
     def init_feature_extract(self):
-        """ Initializes feature extraction. Make sure the camera is initialized
-            before calling this function.
+        """ Initializes feature extraction. Make sure the camera and receiver
+            are initialized before calling this function.
         """
         assert self.image is not None
+        assert self.navdata is not None
 
         # Grab an example window from the initial image to feed the feature
         # extractors (use a non border window).
@@ -245,8 +247,8 @@ class Parrot(object):
         self.cmd_queue.put(cmd_json)
 
     def change_camera(self, camera):
-        cmd['C'] = camera
         cmd = self.fly.default_cmd.copy()
+        cmd['C'] = camera
         cmd_json = json.dumps(cmd)
         self.cmd_queue.put(cmd_json)
 
@@ -257,14 +259,17 @@ def _test_parrot():
     pdb.set_trace()
     parrot = Parrot()
     parrot.init_camera()
+    parrot.init_receiver()
     parrot.init_feature_extract()
 
     while True:
-        image = parrot.image_queue.get()
-        features = parrot.get_features()
-        navdata = parrot.get_navdata()
+        image = parrot.get_image()
+        parrot.get_navdata()
+
+        visual_features = parrot.get_visual_features()
+        nav_features = parrot.get_nav_features()
         with open('feat.dat', 'a') as out:
-            np.savetxt(out, features)
+            np.savetxt(out, visual_features)
 
         cv2.imshow('Image', image)
         key = cv2.waitKey(1) & 0xFF

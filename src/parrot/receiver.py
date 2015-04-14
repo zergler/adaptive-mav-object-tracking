@@ -1,5 +1,8 @@
 #!/usr/bin/env python2
 
+import errno
+import json
+import socket
 import threading
 import time
 
@@ -19,7 +22,7 @@ class ReceiverInitError(ReceiverError):
         self.msg = 'Error: receiver did not initialize succesfully.'
 
 
-class ReceiverConnectionError(receiverError):
+class ReceiverConnectionError(ReceiverError):
     def __init__(self):
         self.msg = 'Error: connection to drone refused.'
 
@@ -30,7 +33,7 @@ class Receiver(threading.Thread):
     def __init__(self, queue):
         threading.Thread.__init__(self)
         self.queue = queue
-        self.qps = 2  # number of queries per second (*not really*)
+        self.qps = 1  # number of queries per second (*not really*)
         self.bufsize = 4096
 
     def run(self):
@@ -41,7 +44,7 @@ class Receiver(threading.Thread):
 
             # Only send queries every onece in a while.
             while True:
-                time.wait(float(1/self.qps))
+                time.sleep(float(1/self.qps))
                 self.recv_navdata()
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
@@ -51,44 +54,42 @@ class Receiver(threading.Thread):
 
     def recv_navdata(self):
         """ Gets the navigation data from the parrot by first sending a 'GET'
-            query and then receiving the data. Times out after a while if no
-            data is received.
-
-            Code credit: John Nielsen
-            http://code.activestate.com/recipes/408859-socketrecv-three-ways-to-turn-it-into-recvall/
+            query and then receiving the data.
         """
-        query = json.dumps('GET')
-        self.cmd_soc.send(query)
-
-        total_data = []
-        data = ''
-        begin = time.time()
-        while True:
-            # If you got some data, then break after wait sec.
-            if total_data and ((time.time() - begin) > timeout):
-                break
-
-            # If you got no data at all, wait a little longer.
-            elif time.time() - begin > timeout*2:
-                break
-            data = the_socket.recv(self.bufsize)
-            if data:
-                total_data.append(data)
-                begin = time.time()
-            else:
-                time.sleep(0.1)
-        navdata = ''.join(total_data)
+        navdata = None
+        query = {
+            'N': True
+        }
+        query = json.dumps(query)
+        self.soc.send(query)
+        try:
+            navdata = self.soc.recv(8192)
+        except socket.error as e:
+            if e[0] == errno.ECONNREFUSED:
+                ReceiverConnectionError().print_error()
 
         # We only care about the most recent navdata so remove the outdated
         # data from the queue.
         if not self.queue.empty():
             self.queue.get()
-        self.queue.put(navdata)
+        if navdata is not None:
+            self.queue.put(navdata)
 
 
 def _test_receiver():
-    pdb.set_trace()
+    recv_queue = Queue.Queue()
+    receiver = Receiver(recv_queue)
+    receiver.daemon = True
+    receiver.start()
+
+    while True:
+        navdata = recv_queue.get()
+        navdata = json.loads(navdata)
+        print(navdata['header'])
+
+
 
 if __name__ == '__main__':
-    import pdb
+    # import pdb
+    import Queue
     _test_receiver()

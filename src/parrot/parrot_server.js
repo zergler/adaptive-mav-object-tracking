@@ -97,27 +97,33 @@ cmdServer.listen(cmdPort, function(){
     console.log(':: Listening for commands on port ' + cmdPort + '.');
 });
 
-// Server that listens for a 'GET' string and sends the drone's navigation data.
+// Server that listens for a 'N' flag and sends the drone's navigation data.
 console.log(':: Creating socket net server for sending navigation data.');
 var recvServer = net.createServer(function(socket) {
     // The socket has been opened.
     console.log('New connection from ' + socket.remoteAddress + ':' + socket.remotePort + '.');
+
+    // Grab the navigation data.
+    var navdata;
+    client.on('navdata', function(data) {
+        navdata = data
+    });
 
     // This code will run when new data arives.
     socket.on('data', function(data) {
         var query;
         try {
             var query = JSON.parse(data);
-            if (query === 'GET') {
+            if (query.N) {
                 console.log('Received query to send navigation data.');
-                socket.write(client.navdata)
+                console.log('Sending navigation data to client.')
+                socket.write(JSON.stringify(navdata));
             }
         }
         catch (e) {
             // Parsed query is not a valid json object.
             console.log('Error: received query is not valid json.');
         }
-
     });
 
     // This code will run when the connection closes.
