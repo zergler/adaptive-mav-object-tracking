@@ -10,29 +10,23 @@ import time
 class ReceiverError(Exception):
     """ Base exception for the module.
     """
-    def __init__(self, msg):
-        self.msg = 'Error: %s' % msg
+    def __init__(self, msg='', warning=False):
+        default_header = 'Error: receiver'
+        default_error = '%s: an exception occured.' % default_header
+        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
+        self.warning = warning
 
     def print_error(self):
         print(self.msg)
 
 
-class ReceiverInitError(ReceiverError):
-    def __init__(self):
-        self.msg = 'Error: receiver did not initialize succesfully.'
-
-
-class ReceiverConnectionError(ReceiverError):
-    def __init__(self):
-        self.msg = 'Error: connection to drone refused.'
-
-
 class Receiver(threading.Thread):
     """ Handles the receiving of navigation data from the drone.
     """
-    def __init__(self, queue):
+    def __init__(self, queue, bucket):
         threading.Thread.__init__(self)
         self.queue = queue
+        self.bucket = bucket
         self.qps = 1  # number of queries per second (*not really*)
         self.bufsize = 8192
 
@@ -48,9 +42,9 @@ class Receiver(threading.Thread):
                 self.recv_navdata()
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
-                ReceiverConnectionError().print_error()
+                self.bucket.put(ReceiverError('unable to connect to receiver server'))
             if e[0] == errno.EPIPE:
-                ReceiverConnectionError().print_error()
+                self.bucket.put(ReceiverError('bad pipe to receiver server'))
 
     def recv_navdata(self):
         """ Gets the navigation data from the parrot by first sending a 'GET'
@@ -66,7 +60,7 @@ class Receiver(threading.Thread):
             navdata = self.soc.recv(self.bufsize)
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
-                ReceiverConnectionError().print_error()
+                self.bucket.put(ReceiverError('unable to connect to receiver server'))
 
         # We only care about the most recent navdata so remove the outdated
         # data from the queue.
@@ -86,8 +80,6 @@ def _test_receiver():
         navdata = recv_queue.get()
         navdata = json.loads(navdata)
         print(navdata['header'])
-
-
 
 if __name__ == '__main__':
     # import pdb

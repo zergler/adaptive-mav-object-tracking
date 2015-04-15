@@ -8,29 +8,23 @@ import threading
 class ControllerError(Exception):
     """ Base exception for the module.
     """
-    def __init__(self, msg):
-        self.msg = 'Error: %s' % msg
+    def __init__(self, msg='', warning=False):
+        default_header = 'Error: controller'
+        default_error = '%s: an exception occured.' % default_header
+        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
+        self.warning = warning
 
     def print_error(self):
         print(self.msg)
 
 
-class ControllerInitError(ControllerError):
-    def __init__(self):
-        self.msg = 'Error: controller did not initialize succesfully.'
-
-
-class ControllerConnectionError(ControllerError):
-    def __init__(self):
-        self.msg = 'Error: connection to drone refused.'
-
-
 class Controller(threading.Thread):
     """ Handles the sending of commands to the drone.
     """
-    def __init__(self, queue):
+    def __init__(self, queue, bucket):
         threading.Thread.__init__(self)
         self.queue = queue
+        self.bucket = bucket
 
     def run(self):
         try:
@@ -43,9 +37,9 @@ class Controller(threading.Thread):
 
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
-                ControllerConnectionError().print_error()
+                self.bucket.put(ControllerError('unable to connect to command server'))
             if e[0] == errno.EPIPE:
-                ControllerConnectionError().print_error()
+                self.bucket.put(ControllerError('bad pipe to command server'))
 
 
 def _test_controller():

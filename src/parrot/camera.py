@@ -6,34 +6,28 @@ import threading
 import Queue
 
 
-class CameraError(Exception):
+class ReceiverError(Exception):
     """ Base exception for the module.
     """
-    def __init__(self, msg):
-        self.msg = 'Error: %s' % msg
+    def __init__(self, msg='', warning=False):
+        default_header = 'Error: camera'
+        default_error = '%s: an exception occured.' % default_header
+        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
+        self.warning = warning
 
     def print_error(self):
         print(self.msg)
-
-
-class CameraInitError(CameraError):
-    def __init__(self, arg):
-        self.msg = 'Error: camera did not initialize succesfully.'
-
-
-class CameraWindowError(CameraError):
-    def __init__(self, arg):
-        self.msg = 'Error: window parameters are invalid.'
 
 
 class Camera(threading.Thread):
     """ Encapsulates the camera on the AR Parrot Drone 2.0. Handles the
         receiving of images from the drone using OpenCV.
     """
-    def __init__(self, address, queue):
+    def __init__(self, address, queue, bucket):
         threading.Thread.__init__(self)
         self.address = address
         self.queue = queue
+        self.bucket = bucket
 
     def run(self):
         cap = cv2.VideoCapture(self.address)
@@ -41,7 +35,10 @@ class Camera(threading.Thread):
             (ret, frame) = cap.read()
             image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if ret:
-                self.queue.put(image_rgb)
+                try:
+                    self.queue.put(image_rgb, block=False)
+                except Queue.Full:
+                    pass
             else:
                 cap.release()
 
@@ -54,16 +51,6 @@ class Camera(threading.Thread):
             descritizations. The percentage of each image which overlaps its
             neighbors is given by percent_overlap.
         """
-        # Check for errors in the passed parameters.
-        if image is None:
-            raise CameraWindowError()
-        if window_size is None:
-            raise CameraWindowError()
-        elif len(window_size) != 2:
-            raise CameraWindowError()
-        if not (0 <= percent_overlap <= 3):
-            raise CameraWindowError()
-
         (y, x, d) = image.shape
         length = (x/window_size[0], y/window_size[1])
         overlap = (int(math.floor(length[0]*percent_overlap/4)), int(math.floor(length[1]*percent_overlap/4)))

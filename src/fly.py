@@ -127,9 +127,9 @@ class FlyTool(object):
             self.gui.run()
 
     def get_features(self):
-        features = self.drone.get_visual_features()
+        feats = self.drone.get_features()
         with open('feat.dat', 'a') as out:
-            np.savetxt(out, features)
+            np.savetxt(out, feats)
             out.write('\n')
 
     def get_object_to_track(self):
@@ -270,7 +270,7 @@ class FlyTool(object):
 
         def update_remote(self):
             # Update this function every once in a while.
-            self.root.after(25, self.update_remote)
+            self.root.after(150, self.update_remote)
 
             # Execute commands from the drone.
             cmd = self.fly.drone.get_cmd()
@@ -278,7 +278,7 @@ class FlyTool(object):
 
         def update_video(self):
             # Update this function every once in a while.
-            self.root.after(300, self.update_video)
+            self.root.after(150, self.update_video)
             self.frame = self.fly.drone.get_image()
             if self.frame is not None:
                 pil_frame = Image.fromarray(self.frame)
@@ -301,6 +301,8 @@ def main():
         sys.exit(1)
     except FlyToolArgumentError as e:
         e.print_error()
+        sys.exit(1)
+    except Exception:
         sys.exit(1)
 
 if __name__ == '__main__':

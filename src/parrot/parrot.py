@@ -79,12 +79,12 @@ class Parrot(object):
         """
         self.remote_queue = Queue.Queue(maxsize=1)
         self.remote_bucket = Queue.Queue()
-        self.remote = remote.Remote(self.remote_queue)
+        self.remote = remote.Remote(self.remote_queue, self.remote_bucket)
         self.remote.daemon = True
         self.remote.start()
 
         # Grab the initial remote data so we know it is initialized.
-        self.cmd = self.remote_queue.get()
+        self.get_cmd()
 
     def init_camera(self):
         """ Initializes the camera thread.
@@ -96,13 +96,14 @@ class Parrot(object):
         self.camera.start()
 
         # Grab the initial image so we know the camera is initialized.
-        self.image = self.image_queue.get()
+        self.get_image()
 
     def init_controller(self):
         """ Initializes the controller thread.
         """
         self.cmd_queue = Queue.Queue(maxsize=1)
-        self.controller = controller.Controller(self.cmd_queue)
+        self.cmd_bucket = Queue.Queue()
+        self.controller = controller.Controller(self.cmd_queue, self.cmd_bucket)
         self.controller.daemon = True
         self.controller.start()
 
@@ -110,12 +111,13 @@ class Parrot(object):
         """ Initializes the receiver thread.
         """
         self.nav_queue = Queue.Queue(maxsize=1)
-        self.receiver = receiver.Receiver(self.nav_queue)
+        self.nav_bucket = Queue.Queue()
+        self.receiver = receiver.Receiver(self.nav_queue, self.nav_bucket)
         self.receiver.daemon = True
         self.receiver.start()
 
         # Grab the initial nav data so we know the receiver is initialized.
-        self.navdata = self.nav_queue.get()
+        self.get_navdata()
 
     def init_tracking(self, bound_box):
         """ Initializes tracking. Make sure the camera is initialized before
@@ -160,7 +162,7 @@ class Parrot(object):
         try:
             error = self.remote_bucket.get(block=False)
             raise error
-        except Queue.empty:
+        except Queue.Empty:
             pass
         except remote.RemoteError as e:
             # If the error is a warning, print the warning, otherwise exit.
@@ -168,7 +170,46 @@ class Parrot(object):
                 print(e.msg)
             else:
                 raise
+        return okay
 
+    def check_controller(self):
+        """ Checks the controller thread to see if it's okay.
+        """
+        # First make sure it is still running.
+        okay = self.controller.isAlive()
+
+        # Grab any exceptions it may have generated.
+        try:
+            error = self.controller_bucket.get(block=False)
+            raise error
+        except Queue.Empty:
+            pass
+        except controller.ControllerError as e:
+            # If the error is a warning, print the warning, otherwise exit.
+            if e.warning:
+                print(e.msg)
+            else:
+                raise
+        return okay
+
+    def check_receiver(self):
+        """ Checks the receiver thread to see if it's okay.
+        """
+        # First make sure it is still running.
+        okay = self.receiver.isAlive()
+
+        # Grab any exceptions it may have generated.
+        try:
+            error = self.nav_bucket.get(block=False)
+            raise error
+        except Queue.Empty:
+            pass
+        except remote.ReceiverError as e:
+            # If the error is a warning, print the warning, otherwise exit.
+            if e.warning:
+                print(e.msg)
+            else:
+                raise
         return okay
 
     def get_visual_features(self):
@@ -208,7 +249,8 @@ class Parrot(object):
                 feats_flow = np.vstack((feats_flow, feats_cur)) if feats_flow.size else feats_cur
 
                 # Get the Hough transform features from the current window.
-                feats_cur = self.extractor_hough_trans.extract(cur_window)
+                lines = self.extractor_hough_trans.extract(cur_window)
+                feats_cur = self.extractor_hough_trans.get_features(lines)
                 feats_hough = np.vstack((feats_hough, feats_cur)) if feats_hough.size else feats_cur
 
                 # Get the Law's texture mask features from the current window.
@@ -232,14 +274,23 @@ class Parrot(object):
         assert self.navdata is not None
         assert self.extractor_cmd_history is not None
         assert self.extractor_nav_history is not None
-        return None
+        return np.array([])
+
+    def get_features(self):
+        visual_features = self.get_visual_features()
+        nav_features = self.get_nav_features()
+        feats = np.hstack((visual_features, nav_features))
+        return feats
 
     def get_navdata(self):
         """ Receives the most recent navigation data from the drone. Calling
             module should call this function in a loop to get navigation data
             continuously. Make sure the receiver is initialized.
         """
-        self.navdata = self.nav_queue.get()
+        try:
+            self.navdata = self.nav_queue.get(block=False)
+        except Queue.Empty:
+            pass
         return self.navdata
 
     def get_image(self):
@@ -247,7 +298,10 @@ class Parrot(object):
             call this function in a loop to get images continuously. Make sure
             the camera is initialized.
         """
-        self.image = self.image_queue.get()
+        try:
+            self.image = self.image_queue.get(block=False)
+        except Queue.Empty:
+            pass
         return self.image
 
     def get_cmd(self):
@@ -255,7 +309,11 @@ class Parrot(object):
             should call this function in a loop to get the the commands
             continuously. Make sure the remote is initialized.
         """
-        self.cmd = self.remote_queue.get()
+        self.cmd = self.default_cmd.copy()
+        try:
+            self.cmd = self.remote_queue.get(block=False)
+        except Queue.Empty:
+            pass
         return self.cmd
 
     def send_cmd(self, cmd):
@@ -263,80 +321,70 @@ class Parrot(object):
             Make sure the controller is initialized.
         """
         cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        try:
+            self.cmd_queue.put(cmd_json, block=False)
+        except Queue.Full:
+            pass
 
     def land(self):
         cmd = self.default_cmd.copy()
         cmd['L'] = True
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def takeoff(self):
         cmd = self.default_cmd.copy()
         cmd['T'] = True
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def stop(self):
         cmd = self.default_cmd.copy()
-        cmd = self.default_cmd.copy()
         cmd['S'] = True
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def turn_left(self, speed):
         cmd = self.default_cmd.copy()
         cmd['R'] = -speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def turn_right(self, speed):
         cmd = self.default_cmd.copy()
         cmd['R'] = speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def fly_up(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Z'] = speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def fly_down(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Z'] = -speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def fly_forward(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Y'] = speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd()
 
     def fly_backward(self, speed):
         cmd = self.default_cmd.copy()
         cmd['Y'] = -speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def fly_left(self, speed):
         cmd = self.default_cmd.copy()
         cmd['X'] = -speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def fly_right(self, speed):
         cmd = self.default_cmd.copy()
         cmd['X'] = speed
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
     def change_camera(self, camera):
         cmd = self.fly.default_cmd.copy()
         cmd['C'] = camera
-        cmd_json = json.dumps(cmd)
-        self.cmd_queue.put(cmd_json)
+        self.send_cmd(cmd)
 
 
 def _test_parrot():

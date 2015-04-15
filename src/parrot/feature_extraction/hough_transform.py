@@ -35,10 +35,6 @@ class HoughTransform(object):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, self.can_thresh1, self.can_thresh2, apertureSize=self.aperature_size)
         lines = cv2.HoughLinesP(edges, self.rho, self.theta, self.hough_thresh, self.min_line_length, self.max_line_gap)
-
-        # Convert this matrix into polar.
-
-        # Filter the lines based on our phi value.
         return lines
 
     @staticmethod
@@ -54,7 +50,10 @@ class HoughTransform(object):
         """ Computes features from the lines found by the Hough transform
             extractor.
         """
-        pass
+        # Convert the lines to polar.
+
+        # Filter the lines based on our phi value.
+        return lines
 
 
 def _test_hough_transform():
