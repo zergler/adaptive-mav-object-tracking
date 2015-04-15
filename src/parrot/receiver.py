@@ -34,7 +34,7 @@ class Receiver(threading.Thread):
         threading.Thread.__init__(self)
         self.queue = queue
         self.qps = 1  # number of queries per second (*not really*)
-        self.bufsize = 4096
+        self.bufsize = 8192
 
     def run(self):
         try:
@@ -63,7 +63,7 @@ class Receiver(threading.Thread):
         query = json.dumps(query)
         self.soc.send(query)
         try:
-            navdata = self.soc.recv(8192)
+            navdata = self.soc.recv(self.bufsize)
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
                 ReceiverConnectionError().print_error()

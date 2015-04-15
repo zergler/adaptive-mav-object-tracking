@@ -4,10 +4,9 @@
 """
 
 import argparse
+import cv2
 import numpy as np
 import sys
-
-import pdb
 
 import Tkinter as tk
 from PIL import ImageTk, Image
@@ -115,8 +114,10 @@ class FlyTool(object):
         self.speed = 0.3
         self.drone = parrot.Parrot()
         try:
+            self.drone.init_remote()
             self.drone.init_camera()
             self.drone.init_controller()
+            self.drone.init_receiver()
             self.drone.init_feature_extract()
         except Exception:
             pass
@@ -126,7 +127,7 @@ class FlyTool(object):
             self.gui.run()
 
     def get_features(self):
-        features = self.drone.get_features()
+        features = self.drone.get_visual_features()
         with open('feat.dat', 'a') as out:
             np.savetxt(out, features)
             out.write('\n')
@@ -134,27 +135,28 @@ class FlyTool(object):
     def get_object_to_track(self):
         """ Gets the object to track from the user.
         """
+
         # Get the ROI from the user.
-        bound_box = tracking.bounding_box.BoundingBox(frame)
-        clone = frame.copy()
+        bound_box = tracking.bounding_box.BoundingBox(self.frame)
+        clone = self.frame.copy()
         cv2.namedWindow("Grab ROI")
         cv2.setMouseCallback("Grab ROI", bound_box.click_and_bound)
         while True:
-            cv2.imshow("Grab ROI", frame)
+            cv2.imshow("Grab ROI", self.frame)
             key = cv2.waitKey()
             bound = bound_box.get_bounding_box()
 
             if bound_box.get_bounding_box() is not None:
-                cv2.rectangle(frame, bound[0], bound[1], (0, 0, 255), 2)
-                cv2.imshow("Grab ROI", frame)
+                cv2.rectangle(self.frame, bound[0], bound[1], (0, 0, 255), 2)
+                cv2.imshow("Grab ROI", self.frame)
 
             # if the 'r' key is pressed, reset the cropping region.
             if key == ord('r'):
-                frame = clone.copy()
+                self.frame = clone.copy()
 
             if key == ord('n'):
-                frame = self.drone.get_image()
-                clone = frame.copy()
+                self.frame = self.drone.get_image()
+                clone = self.frame.copy()
 
             if key == ord('q'):
                 break
@@ -177,6 +179,7 @@ class FlyTool(object):
                 self.create_gui()
 
         def run(self):
+            self.update_remote()
             self.update_video()
             self.root.mainloop()
             sys.exit(0)
@@ -265,18 +268,26 @@ class FlyTool(object):
             if char_released in drone_stop_list:
                 self.fly.drone.stop()
 
+        def update_remote(self):
+            # Update this function every once in a while.
+            self.root.after(25, self.update_remote)
+
+            # Execute commands from the drone.
+            cmd = self.fly.drone.get_cmd()
+            self.fly.drone.send_cmd(cmd)
+
         def update_video(self):
-            self.root.after(500, self.update_video)
-            frame = self.fly.drone.get_image()
-            if frame is not None:
-                pil_frame = Image.fromarray(frame)
+            # Update this function every once in a while.
+            self.root.after(300, self.update_video)
+            self.frame = self.fly.drone.get_image()
+            if self.frame is not None:
+                pil_frame = Image.fromarray(self.frame)
                 pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)
                 photo_frame = ImageTk.PhotoImage(pil_frame)
                 self.cam_label.config(image=photo_frame)
                 self.cam_label.image = photo_frame
 
-                # Get the features and append to the data file.
-                self.fly.get_features()
+            # Get the features and append to the data file.
 
 
 def main():

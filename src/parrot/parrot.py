@@ -7,13 +7,16 @@ import numpy as np
 
 
 # Local modules.
+import remote
 import camera
 import controller
 import receiver
 
-# Igor's modules.
+# Feature modules.
 from feature_extraction import hough_transform
 from feature_extraction import optical_flow
+
+# Tracking modules.
 from tracking import bounding_box
 from tracking import cam_shift
 
@@ -38,6 +41,7 @@ class Parrot(object):
         self.default_cmd = {
             'X': 0.0,
             'Y': 0.0,
+            'Z': 0.0,
             'R': 0.0,
             'C': 0,
             'T': False,
@@ -67,6 +71,17 @@ class Parrot(object):
 
         # The method of tracking we are going to use.
         self.tracking = None
+
+    def init_remote(self):
+        """ Initializes the remote control.
+        """
+        self.remote_queue = Queue.Queue(maxsize=1)
+        self.remote = remote.Remote(self.remote_queue)
+        self.remote.daemon = True
+        self.remote.start()
+
+        # Grab the initial remote data so we know it is initialized.
+        self.cmd = self.remote_queue.get()
 
     def init_camera(self):
         """ Initializes the camera thread.
@@ -162,22 +177,33 @@ class Parrot(object):
     def get_navdata(self):
         """ Receives the most recent navigation data from the drone. Calling
             module should call this function in a loop to get navigation data
-            continuously.
+            continuously. Make sure the receiver is initialized.
         """
         self.navdata = self.nav_queue.get()
         return self.navdata
 
     def get_image(self):
         """ Receives the most recent image from the drone. Calling module should
-            call this function in a loop to get images continuously.
+            call this function in a loop to get images continuously. Make sure
+            the camera is initialized.
         """
         self.image = self.image_queue.get()
         return self.image
 
-    def exit(self):
-        """ Before exiting, safely lands the drone and closes all processes.
+    def get_cmd(self):
+        """ Receives the most recent command from the remote. Calling module
+            should call this function in a loop to get the the commands
+            continuously. Make sure the remote is initialized.
         """
-        land()
+        self.cmd = self.remote_queue.get()
+        return self.cmd
+
+    def send_cmd(self, cmd):
+        """ Before exiting, safely lands the drone and closes all processes.
+            Make sure the controller is initialized.
+        """
+        cmd_json = json.dumps(cmd)
+        self.cmd_queue.put(cmd_json)
 
     def land(self):
         cmd = self.default_cmd.copy()
@@ -267,7 +293,7 @@ def _test_parrot():
         parrot.get_navdata()
 
         visual_features = parrot.get_visual_features()
-        nav_features = parrot.get_nav_features()
+        # nav_features = parrot.get_nav_features()
         with open('feat.dat', 'a') as out:
             np.savetxt(out, visual_features)
 
