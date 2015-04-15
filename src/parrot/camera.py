@@ -41,10 +41,6 @@ class Camera(threading.Thread):
             (ret, frame) = cap.read()
             image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if ret:
-                # We only care about the most recent image so remove outdated
-                # ones from the queue.
-                if not self.queue.empty():
-                    self.queue.get()
                 self.queue.put(image_rgb)
             else:
                 cap.release()

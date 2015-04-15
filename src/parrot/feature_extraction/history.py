@@ -77,7 +77,6 @@ def _test_command_history():
     cmd_history = CmdHistory(length, timestamp)
 
     # Create some test commands.
-s = np.convolve(s, h)
     cmds = []
     cmds.append(np.array([-0.5, 0, 0, 0]))
     cmds.append(np.array([-0.4, 0, 0, 0]))

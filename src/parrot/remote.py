@@ -2,6 +2,7 @@
 
 import pygame
 import threading
+import sys
 import numpy as np
 
 """ Remote control module for controlling the drone using a simple gamepad.
@@ -14,29 +15,64 @@ import numpy as np
 class RemoteError(Exception):
     """ Base exception for the module.
     """
-    def __init__(self, msg):
-        self.msg = 'Error: %s' % msg
+    def __init__(self, msg='', warning=False):
+        default_header = 'Error: remote'
+        default_error = '%s: an exception occured.' % default_header
+        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
+        self.warning = warning
 
     def print_error(self):
         print(self.msg)
 
 
 class Remote(threading.Thread):
-    """ Handles the conversion of gamepad inputs to drone commands.
+    """ Handles the conversion of gamepad inputs to drone commands. This thread
+        runs as long as the pygame module is correctly initialized.
     """
-    def __init__(self, queue):
+    def __init__(self, queue, bucket):
         threading.Thread.__init__(self)
-        self.queue = queue
-        pygame.init()
-        self.j = pygame.joystick.Joystick(0)
-        self.j.init()
+        self.queue = queue    # the queue that stores commands from remote
+        self.bucket = bucket  # the queue that stores exceptions from the thread
+
+        # Flags for errors.
+        self.pygame_okay = False
+        self.joystick_okay = False
+
+        # Initialize pygame.
+        (_, numfail) = pygame.init()
+        if numfail > 0:
+            self.bucket.put(RemoteError('pygame initialization failed'))
+            return
+
+        self.pygame_okay = True
+        self.j = None
 
     def run(self):
-        i = 0
-        while True:
-            inputs = self.get()
-            self.queue.put(inputs)
-            i += 1
+        try:
+            if self.pygame_okay:
+                while True:
+                    self.check_joystick_okay()
+                    if self.joystick_okay:
+                        inputs = self.get()
+                        self.queue.put(inputs)
+        except:
+            exc_error = sys.exc_info()
+            remote_error = RemoteError('%s, %s, %s' % exc_error)
+            self.bucket.put(remote_error)
+
+    def check_joystick_okay(self):
+        """ Makes sure the joystick is running okay.
+        """
+        # Check that the joystick is still running.
+        if not pygame.joystick.get_count():
+
+            # Block until the joystick is reconnected.
+            while not pygame.joystick.get_count():
+                pass
+
+            # Once it's reconnected, reinitialize it.
+            self.j = pygame.joystick.Joystick(0)
+            self.okay = self.j.get_init()
 
     def get(self):
         """ Gets the associated command from the current gamepad inputs.
@@ -76,7 +112,7 @@ class Remote(threading.Thread):
 
 
 def _test_remote():
-    #pdb.set_trace()
+    pdb.set_trace()
     remote_queue = Queue.Queue(maxsize=1)
     remote = Remote(remote_queue)
     remote.daemon = True

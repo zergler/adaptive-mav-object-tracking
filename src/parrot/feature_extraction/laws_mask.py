@@ -24,7 +24,7 @@ class LawsMask(object):
         self.LE3 = np.convolve(L3, np.transpose(E3))
         self.LS3 = np.convolve(L3, np.transpose(S3))
         self.EE3 = np.convolve(E3, np.transpose(E3))
-        self.ES3 = np.convolve(E4, np.transpose(S3))
+        self.ES3 = np.convolve(E3, np.transpose(S3))
         self.SS3 = np.convolve(S3, np.transpose(S3))
 
         self.LL5 = np.convolve(L5, np.transpose(L5))
@@ -39,7 +39,7 @@ class LawsMask(object):
             in the YCrCb color space before calling this function.
         """
         if convert:
-            image = cv2.cvtColor(imgCV_RGB2YCrCb)
+            image = cv2.cvtColor(cv2.imgCV_RGB2YCrCb)
 
         # Apply the filter.
         (Y, Cr, Cb) = cv2.split(image)
