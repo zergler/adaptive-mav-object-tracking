@@ -39,7 +39,7 @@ class Parrot(object):
         Allows access to the drone's front and bottom cameras, the ability to
         send commands, and the ability to read the dron's navigation data.
     """
-    def __init__(self):
+    def __init__(self, fps):
         self.default_cmd = {
             'X': 0.0,
             'Y': 0.0,
@@ -66,6 +66,8 @@ class Parrot(object):
         # Feature extraction parameters.
         self.window_size = (15, 7)
         self.overlap = 0.5
+        self.fps = fps  # the number of features per second to process
+        self.cmd_history_length = 10  # keep a running list of the last 10 cmds
 
         # Where we get our features.
         self.image = None
@@ -149,7 +151,7 @@ class Parrot(object):
         self.extractor_opt_flow = optical_flow.OpticalFlow(small_image)
         self.extractor_hough_trans = hough_transform.HoughTransform()
         self.extractor_laws_mask = laws_mask.LawsMask()
-        self.extractor_cmd_history = history.CmdHistory()
+        self.extractor_cmd_history = history.CmdHistory(self.cmd_history_length, self.fps)
         self.extractor_nav_history = history.NavHistory()
 
     def check_remote(self):
@@ -274,7 +276,12 @@ class Parrot(object):
         assert self.navdata is not None
         assert self.extractor_cmd_history is not None
         assert self.extractor_nav_history is not None
-        return np.array([])
+
+        # Get the command history features.
+        feats_cmd_history = self.extractor_cmd_history.extract()
+        feats_nav_history = self.extractor_nav_history.extract()
+        feats_all = np.vstack((feats_cmd_history, feats_nav_history))
+        return feats_all
 
     def get_features(self):
         visual_features = self.get_visual_features()
@@ -325,6 +332,9 @@ class Parrot(object):
             self.cmd_queue.put(cmd_json, block=False)
         except Queue.Full:
             pass
+
+        # Add the send command to the command history feature extractor.
+        self.extractor_cmd_history.update(cmd)
 
     def land(self):
         cmd = self.default_cmd.copy()

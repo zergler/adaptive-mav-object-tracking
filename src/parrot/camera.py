@@ -76,7 +76,7 @@ def _test_camera():
 
     # Conduct tests...
     # _test_get_image()
-    _test_get_windows()
+    _test_get_windows(show_window=True)
 
 
 def _test_get_image():
@@ -94,10 +94,11 @@ def _test_get_image():
             break
 
 
-def _test_get_windows():
+def _test_get_windows(show_window=False):
     # Make sure the resulting windows look right.
     test_image_filename = '../../samples/test_forest.jpg'
     test_image = cv2.imread(test_image_filename)
+    clone = test_image.copy()
 
     x = 15
     y = 7
@@ -106,10 +107,14 @@ def _test_get_windows():
     windows = Camera.get_windows(test_image, (x, y), overlap)
     for r in range(0, y):
         for c in range(0, x):
-            cur_window = test_image[windows[r][c][2]:windows[r][c][3], windows[r][c][0]:windows[r][c][1]]
+            cur_window = clone[windows[r][c][2]:windows[r][c][3], windows[r][c][0]:windows[r][c][1]]
             cv2.rectangle(test_image, (windows[r][c][0], windows[r][c][2]), (windows[r][c][1], windows[r][c][3]), (0, 0, 255), 2)
-            cv2.imshow('Image window', cur_window)
-            cv2.waitKey(0)
+            if show_window:
+                cv2.imshow('Image window', cur_window)
+                cv2.waitKey(0)
+            else:
+                cv2.imshow('Image', test_image)
+                cv2.waitKey(0)
 
 
 if __name__ == '__main__':

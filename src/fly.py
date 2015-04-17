@@ -112,7 +112,8 @@ class FlyTool(object):
 
         # Create the drone object.
         self.speed = 0.3
-        self.drone = parrot.Parrot()
+        self.fps = 2
+        self.drone = parrot.Parrot(self.fps)
         try:
             self.drone.init_remote()
             self.drone.init_camera()
