@@ -58,7 +58,7 @@ class HoughTransform(object):
 
 def _test_hough_transform():
     pdb.set_trace()
-    test_filename = '../../samples/test_hough.jpg'
+    test_filename = '../../../samples/test_hough.jpg'
 
     img = cv2.imread(test_filename, cv2.CV_LOAD_IMAGE_COLOR)
     hough_transform = HoughTransform()

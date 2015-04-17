@@ -44,33 +44,35 @@ class LawsMask(object):
         # Apply the filter.
         (Y, Cr, Cb) = cv2.split(image)
         if filter_size == 3:
-            Y_LL  = cv2.filter2D(Y, -1, self.LL3)
-            Cr_LL = cv2.filter2D(Y, -1, self.LL3)
-            Cb_LL = cv2.filter2D(Y, -1, self.LL3)
-            Y_LE  = cv2.filter2D(Y, -1, self.LE3)
-            Y_LS  = cv2.filter2D(Y, -1, self.LS3)
-            Y_EE  = cv2.filter2D(Y, -1, self.EE3)
-            Y_ES  = cv2.filter2D(Y, -1, self.ES3)
-            Y_SS  = cv2.filter2D(Y, -1, self.SS3)
+            Y_LL  = abs(np.mean(cv2.filter2D(Y, -1, self.LL3)))
+            Cr_LL = abs(np.mean(cv2.filter2D(Y, -1, self.LL3)))
+            Cb_LL = abs(np.mean(cv2.filter2D(Y, -1, self.LL3)))
+            Y_LE  = abs(np.mean(cv2.filter2D(Y, -1, self.LE3)))
+            Y_LS  = abs(np.mean(cv2.filter2D(Y, -1, self.LS3)))
+            Y_EE  = abs(np.mean(cv2.filter2D(Y, -1, self.EE3)))
+            Y_ES  = abs(np.mean(cv2.filter2D(Y, -1, self.ES3)))
+            Y_SS  = abs(np.mean(cv2.filter2D(Y, -1, self.SS3)))
         elif filter_size == 5:
-            Y_LL  = cv2.filter2D(Y, -1, self.LL3)
-            Cr_LL = cv2.filter2D(Y, -1, self.LL3)
-            Cb_LL = cv2.filter2D(Y, -1, self.LL3)
-            Y_LE  = cv2.filter2D(Y, -1, self.LE3)
-            Y_LS  = cv2.filter2D(Y, -1, self.LS3)
-            Y_EE  = cv2.filter2D(Y, -1, self.EE3)
-            Y_ES  = cv2.filter2D(Y, -1, self.ES3)
-            Y_SS  = cv2.filter2D(Y, -1, self.SS3)
+            Y_LL  = abs(np.mean(cv2.filter2D(Y, -1, self.LL3)))
+            Cr_LL = abs(np.mean(cv2.filter2D(Y, -1, self.LL3)))
+            Cb_LL = abs(np.mean(cv2.filter2D(Y, -1, self.LL3)))
+            Y_LE  = abs(np.mean(cv2.filter2D(Y, -1, self.LE3)))
+            Y_LS  = abs(np.mean(cv2.filter2D(Y, -1, self.LS3)))
+            Y_EE  = abs(np.mean(cv2.filter2D(Y, -1, self.EE3)))
+            Y_ES  = abs(np.mean(cv2.filter2D(Y, -1, self.ES3)))
+            Y_SS  = abs(np.mean(cv2.filter2D(Y, -1, self.SS3)))
 
         # Construct the feature vector.
-        features = np.array(Y_LL, Cr_LL, Cb_LL, Y_LE, Y_LS, Y_EE, Y_ES, Y_SS)
+        features = np.array([Y_LL, Cr_LL, Cb_LL, Y_LE, Y_LS, Y_EE, Y_ES, Y_SS])
         return features
 
 
-def test_laws_mask(object):
-    sample_imgs = [None]
+def _test_laws_mask():
+    sample_img_filenames = ['../../../samples/test_forest.jpg']
+    sample_img = cv2.imread(sample_img_filenames[0])
     laws_mask = LawsMask()
-    laws_mask.extract(sample_imgs[0])
+    features = laws_mask.extract(sample_img)
+    print(features)
 
 if __name__ == '__main__':
-    test_laws_mask()
+    _test_laws_mask()

@@ -118,8 +118,8 @@ def _test_optical_flow():
 
     # Conduct tests...
     # _test_optical_flow_extract(stream, opt_flow)
-    # _test_optical_flow_get_image(stream, opt_flow)
-    _test_optical_flow_get_features(stream, opt_flow)
+    _test_optical_flow_get_image(stream, opt_flow)
+    # _test_optical_flow_get_features(stream, opt_flow)
 
 
 def _test_optical_flow_extract(stream, opt_flow):
