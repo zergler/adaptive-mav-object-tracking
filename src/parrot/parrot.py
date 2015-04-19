@@ -93,7 +93,8 @@ class Parrot(object):
         """
         camera_address = 'tcp://' + self.address + ':' + str(self.ports['VIDEO'])
         self.image_queue = Queue.Queue(maxsize=1)
-        self.camera = camera.Camera(camera_address, self.image_queue)
+        self.image_bucket = Queue.Queue()
+        self.camera = camera.Camera(camera_address, self.image_queue, self.image_bucket)
         self.camera.daemon = True
         self.camera.start()
 
@@ -151,7 +152,7 @@ class Parrot(object):
         self.extractor_opt_flow = optical_flow.OpticalFlow(small_image)
         self.extractor_hough_trans = hough_transform.HoughTransform()
         self.extractor_laws_mask = laws_mask.LawsMask()
-        self.extractor_cmd_history = history.CmdHistory(self.cmd_history_length, self.fps)
+        #self.extractor_cmd_history = history.CmdHistory(self.cmd_history_length, self.fps)
         self.extractor_nav_history = history.NavHistory()
 
     def check_remote(self):
@@ -173,6 +174,27 @@ class Parrot(object):
             else:
                 raise
         return okay
+
+    def check_camera(self):
+        """ Checks the camera thread to see if it's okay.
+        """
+        # First make sure it is still running.
+        okay = self.camera.isAlive()
+
+        # Grab any exceptions it may have generated.
+        try:
+            error = self.camera_bucket.get(block=False)
+            raise error
+        except Queue.Empty:
+            pass
+        except remote.RemoteError as e:
+            # If the error is a warning, print the warning, otherwise exit.
+            if e.warning:
+                print(e.msg)
+            else:
+                raise
+        return okay
+
 
     def check_controller(self):
         """ Checks the controller thread to see if it's okay.
@@ -274,8 +296,8 @@ class Parrot(object):
             from the receiver thread.
         """
         assert self.navdata is not None
-        assert self.extractor_cmd_history is not None
-        assert self.extractor_nav_history is not None
+        #assert self.extractor_cmd_history is not None
+        #assert self.extractor_nav_history is not None
 
         # Get the command history features.
         feats_cmd_history = self.extractor_cmd_history.extract()
@@ -334,7 +356,7 @@ class Parrot(object):
             pass
 
         # Add the send command to the command history feature extractor.
-        self.extractor_cmd_history.update(cmd)
+        #self.extractor_cmd_history.update(cmd)
 
     def land(self):
         cmd = self.default_cmd.copy()

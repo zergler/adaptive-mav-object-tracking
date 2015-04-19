@@ -71,17 +71,23 @@ class Receiver(threading.Thread):
 
 
 def _test_receiver():
-    recv_queue = Queue.Queue()
-    receiver = Receiver(recv_queue)
+    recv_queue = Queue.Queue(maxsize=1)
+    recv_bucket = Queue.Queue()
+    receiver = Receiver(recv_queue, recv_bucket)
     receiver.daemon = True
     receiver.start()
 
     while True:
-        navdata = recv_queue.get()
-        navdata = json.loads(navdata)
-        print(navdata['header'])
+        try:
+            navdata = recv_queue.get(block=False)
+            navdata = json.loads(navdata)
+            pprint.pprint(navdata)
+            navdata = None
+        except Queue.Empty:
+            pass
 
 if __name__ == '__main__':
     # import pdb
+    import pprint
     import Queue
     _test_receiver()

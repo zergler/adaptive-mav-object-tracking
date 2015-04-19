@@ -6,7 +6,7 @@ import threading
 import Queue
 
 
-class ReceiverError(Exception):
+class CameraError(Exception):
     """ Base exception for the module.
     """
     def __init__(self, msg='', warning=False):
