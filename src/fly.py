@@ -16,19 +16,17 @@ from parrot import parrot
 from parrot import tracking
 
 
-class FlyToolError(Exception):
+class FlyError(Exception):
     """ Base exception for the module.
     """
-    def __init__(self, msg):
-        self.msg = 'Error: %s' % msg
+    def __init__(self, msg='', warning=False):
+        default_header = 'Error: fly'
+        default_error = '%s: an exception occured.' % default_header
+        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
+        self.warning = warning
 
     def print_error(self):
         print(self.msg)
-
-
-class FlyToolArgumentError(FlyToolError):
-    def __init__(self, arg):
-        self.msg = "Error: argument '%s' is invalid." % arg
 
 
 class FlyToolArgs(object):
@@ -45,37 +43,38 @@ class FlyToolArgs(object):
         epil = 'Application %s version %s. Created by %s on %s for %s.' % (name, version, author, date, organ)
 
         # Arguments help.
+        regressor_help = "The type of learning alrogorithm to use. Use 'tkhonov' for Tikhonov regression and 'ordinary_least_squares' for ordinary least squares linear regression."
+        iterations_help = 'The number of iterations of leanring to do.'
+        trajectories_help = 'The number of trajectories to include per iteration of learning.'
         help_help = 'Show this help message and exit.'
         gui_help = 'Use this flag if you want to use the GUI.'
-        stream_help = 'Use this argument if you want to record the front and bottom camera streams as mpeg. If so, pass the name of the files the streams will be saved in.'
+        save_help = 'Use this argument if you want to record the camera as mpeg. If so, pass the name of the files the stream will be saved in.'
         verb_help = 'Increase the output verbosity.'
 
         # Argparser.
         self.arg_parser = argparse.ArgumentParser(prog=name, description=desc, epilog=epil, add_help=False)
+        required_args = self.arg_parser.add_argument_group('Required arguments', '')
         optional_args = self.arg_parser.add_argument_group('Optional arguments', '')
+
+        required_args.add_argument('-r', '--regressor', required=True, type=str, dest='regressor', help=regressor_help)
+        required_args.add_argument('-i', '--iterations', required=True, type=int, help=iterations_help)
+        required_args.add_argument('-t', '--trajectories', required=True, type=int, help=trajectories_help)
 
         optional_args.add_argument('-h', '--help', action='help', help=help_help)
         optional_args.add_argument('-g', '--gui', dest='gui', action='store_true', default=False, help=gui_help)
         optional_args.add_argument('-v', '--verbosity', dest='verb', action='count', default=0, help=verb_help)
-        optional_args.add_argument('-s', '--stream', type=str, dest='stream', help=stream_help, metavar='\b')
+        optional_args.add_argument('-s', '--save', dest='save', action='store_true', help=save_help)
 
     def parse(self):
         self.args = self.arg_parser.parse_args()
 
-        # Parse the stream argument.
-        if self.args.stream is not None:
+        # Parse the save argument.
+        if self.args.save is not None:
             try:
-                self.args.stream = self.args.stream.split(',')
                 # Make sure that the file can be accessed with correct permissions.
+                pass
             except ValueError:
-                raise FlyToolArgumentError(self.args.record)
-
-        self.parse_stream()
-
-    def parse_stream(self):
-        """ Same for the stream argument.
-        """
-        pass
+                raise FlyError(self.args.record)
 
 
 class FlyTool(object):
@@ -83,12 +82,16 @@ class FlyTool(object):
 
         Responsible for creating an interface that allows a user to fly the
         drone seamlessly. Also, it handles other things like printing debug
-        information and saving streams.
+        information and saving saves.
     """
-    def __init__(self, gui, verb, stream):
+    def __init__(self, gui, verb, save, iterations, trajectories, regressor):
         self.gui = gui
         self.verb = verb
-        self.stream = stream
+        self.save = save
+        self.iterations = iterations
+        self.trajectories = trajectories
+        self.regressor = regressor
+        pdb.set_trace()
 
     def start(self):
         """ Starts the flying tool.
@@ -103,17 +106,14 @@ class FlyTool(object):
             print(':: Accessing controller server at: localhost:9000.')
             print(':: Accessing navigation data server at : localhost:9001.')
             print(':: Accessing camera stream server at: tcp://192.168.1.1:5555.')
-            if self.stream:
-                # if self.stream[0]:
-                #     print(':: Saving front camera stream to file: %s.' % self.fc_filename)
-                # if self.stream[1]:
-                #     print(':: Saving bottom camera stream to file: %s.' % self.br_filename)
-                pass
+            if self.save:
+                if self.save:
+                    print(':: Saving front camera stream to file: %s.' % self.fc_filename)
 
         # Create the drone object.
         self.speed = 0.3
         self.fps = 2
-        self.drone = parrot.Parrot(self.fps)
+        self.drone = parrot.Parrot(self.fps, self.save, self.iterations, self.trajectories, self.regressor)
         try:
             self.drone.init_remote()
             self.drone.init_camera()
@@ -183,6 +183,7 @@ class FlyTool(object):
             self.update_remote()
             self.update_video()
             self.root.mainloop()
+            self.fly.drone.exit()
             sys.exit(0)
 
         def create_gui(self):
@@ -295,16 +296,18 @@ def main():
     try:
         fa = FlyToolArgs()
         fa.parse()
-        f = FlyTool(fa.args.gui, fa.args.verb, fa.args.stream)
+        f = FlyTool(fa.args.gui, fa.args.verb, fa.args.save, fa.args.iterations, fa.args.trajectories, fa.args.regressor)
         f.start()
+    except FlyError as e:
+        e.print_error()
+        sys.exit(1)
     except KeyboardInterrupt:
         print('\nClosing.')
         sys.exit(1)
-    except FlyToolArgumentError as e:
-        e.print_error()
-        sys.exit(1)
     except Exception:
+        sys.exc_info()
         sys.exit(1)
 
 if __name__ == '__main__':
+    import pdb
     main()

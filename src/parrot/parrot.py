@@ -22,6 +22,9 @@ from feature_extraction import history
 from tracking import bounding_box
 from tracking import cam_shift
 
+# Learning modules.
+from learning import dagger
+
 
 class ParrotError(Exception):
     """ Base exception for the module.
@@ -37,9 +40,10 @@ class Parrot(object):
     """ Encapsulates the AR Parrot Drone 2.0.
 
         Allows access to the drone's front and bottom cameras, the ability to
-        send commands, and the ability to read the dron's navigation data.
+        send commands, and the ability to read the drone's navigation data.
     """
-    def __init__(self, fps):
+    def __init__(self, fps, save, iterations, trajectories, regressor='tikhonov'):
+        # The default command that is sent to the drone.
         self.default_cmd = {
             'X': 0.0,
             'Y': 0.0,
@@ -50,18 +54,26 @@ class Parrot(object):
             'L': False,
             'S': False
         }
+
+        # The drone's address and ports.
         self.address = '192.168.1.1'
         self.ports = {
             'NAVDATA': 5554,
             'VIDEO':   5555,
             'CMD':     5556
         }
+
+        # The drone's cameras.
         self.cameras = {
             'FRONT':  0,
             'BOTTOM': 3,
             'CUSTOM': 4
         }
         self.active_camera = self.cameras['FRONT']
+
+        # Where we save the video.
+        self.save = save
+        self.video = None
 
         # Feature extraction parameters.
         self.window_size = (15, 7)
@@ -75,6 +87,10 @@ class Parrot(object):
 
         # The method of tracking we are going to use.
         self.tracking = None
+
+        # The method of learning we are going to use.
+        self.possible_regressors = ['tikhonov', 'linear_least_squares']
+        self.dagger = dagger.DAgger(regressor, iterations, trajectories)
 
     def init_remote(self):
         """ Initializes the remote control.
@@ -100,6 +116,11 @@ class Parrot(object):
 
         # Grab the initial image so we know the camera is initialized.
         self.get_image()
+
+        # Start saving the video if we need to.
+        (width, height, _) = self.image.shape
+        video_name = '../src/data/video_%s_%s.avi' % (self.dagger.i, self.dagger.j)
+        self.video = cv2.VideoWriter(video_name, -1, 1, (width, height))
 
     def init_controller(self):
         """ Initializes the controller thread.
@@ -152,7 +173,7 @@ class Parrot(object):
         self.extractor_opt_flow = optical_flow.OpticalFlow(small_image)
         self.extractor_hough_trans = hough_transform.HoughTransform()
         self.extractor_laws_mask = laws_mask.LawsMask()
-        #self.extractor_cmd_history = history.CmdHistory(self.cmd_history_length, self.fps)
+        # self.extractor_cmd_history = history.CmdHistory(self.cmd_history_length, self.fps)
         self.extractor_nav_history = history.NavHistory()
 
     def check_remote(self):
@@ -194,7 +215,6 @@ class Parrot(object):
             else:
                 raise
         return okay
-
 
     def check_controller(self):
         """ Checks the controller thread to see if it's okay.
@@ -296,8 +316,8 @@ class Parrot(object):
             from the receiver thread.
         """
         assert self.navdata is not None
-        #assert self.extractor_cmd_history is not None
-        #assert self.extractor_nav_history is not None
+        # assert self.extractor_cmd_history is not None
+        # assert self.extractor_nav_history is not None
 
         # Get the command history features.
         feats_cmd_history = self.extractor_cmd_history.extract()
@@ -331,6 +351,11 @@ class Parrot(object):
             self.image = self.image_queue.get(block=False)
         except Queue.Empty:
             pass
+
+        # Save the video if we need to.
+        if self.video is not None:
+            self.video.write(self.image)
+
         return self.image
 
     def get_cmd(self):
@@ -356,7 +381,14 @@ class Parrot(object):
             pass
 
         # Add the send command to the command history feature extractor.
-        #self.extractor_cmd_history.update(cmd)
+        # self.extractor_cmd_history.update(cmd)
+
+    def exit(self):
+        """ Lands the drone, closes all cv windows and exits.
+        """
+        self.land()
+        cv2.destroyAllWindows()
+        self.video.release()
 
     def land(self):
         cmd = self.default_cmd.copy()
@@ -423,7 +455,12 @@ def _test_parrot():
     """ Tests the parrot module
     """
     pdb.set_trace()
-    parrot = Parrot()
+
+    fps = 2
+    save = True
+    iterations = 3
+    trajectories = 2
+    parrot = Parrot(fps, save, iterations, trajectories)
     parrot.init_camera()
     parrot.init_receiver()
     parrot.init_feature_extract()
