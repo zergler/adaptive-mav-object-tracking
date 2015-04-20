@@ -37,7 +37,8 @@ class DAgger(object):
         self.D = np.array([])
         self.C = np.array([])
 
-        self.i = 0  # current itteration
+        self.i = 0  # current iteration
+        self.j = 0  # current trajectory
 
     def aggregate(self):
         """ Aggregate the data.

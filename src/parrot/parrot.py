@@ -42,7 +42,16 @@ class Parrot(object):
         Allows access to the drone's front and bottom cameras, the ability to
         send commands, and the ability to read the drone's navigation data.
     """
-    def __init__(self, fps, save, iterations, trajectories, regressor='tikhonov'):
+    def __init__(self, address, learning, iterations, trajectories, save, frame_rate, remote_rate, nav_rate):
+        (self.controller_address, self.receiver_address) = address
+        self.learning = learning
+        self.iterations = iterations
+        self.trajectories = trajectories
+        self.save = save
+        self.frame_rate = frame_rate
+        self.remote_rate = remote_rate
+        self.nav_rate = nav_rate
+
         # The default command that is sent to the drone.
         self.default_cmd = {
             'X': 0.0,
@@ -56,7 +65,7 @@ class Parrot(object):
         }
 
         # The drone's address and ports.
-        self.address = '192.168.1.1'
+        self.drone_address = '192.168.1.1'
         self.ports = {
             'NAVDATA': 5554,
             'VIDEO':   5555,
@@ -78,8 +87,11 @@ class Parrot(object):
         # Feature extraction parameters.
         self.window_size = (15, 7)
         self.overlap = 0.5
-        self.fps = fps  # the number of features per second to process
+        self.cmd_history_feats = 7    # the approximate number of cmd history features
         self.cmd_history_length = 10  # keep a running list of the last 10 cmds
+
+        self.nav_history_feats = 7    # the approximate number of nav history features
+        self.nav_history_length = 10  # keep a running list of the last 10 nav data
 
         # Where we get our features.
         self.image = None
@@ -89,8 +101,8 @@ class Parrot(object):
         self.tracking = None
 
         # The method of learning we are going to use.
-        self.possible_regressors = ['tikhonov', 'linear_least_squares']
-        self.dagger = dagger.DAgger(regressor, iterations, trajectories)
+        self.possible_learning = ['tikhonov', 'linear_least_squares']
+        self.dagger = dagger.DAgger(learning, iterations, trajectories)
 
     def init_remote(self):
         """ Initializes the remote control.
@@ -104,10 +116,13 @@ class Parrot(object):
         # Grab the initial remote data so we know it is initialized.
         self.get_cmd()
 
+        # Make sure the remote thread is running.
+        return self.check_remote()
+
     def init_camera(self):
         """ Initializes the camera thread.
         """
-        camera_address = 'tcp://' + self.address + ':' + str(self.ports['VIDEO'])
+        camera_address = 'tcp://' + self.drone_address + ':' + str(self.ports['VIDEO'])
         self.image_queue = Queue.Queue(maxsize=1)
         self.image_bucket = Queue.Queue()
         self.camera = camera.Camera(camera_address, self.image_queue, self.image_bucket)
@@ -115,12 +130,13 @@ class Parrot(object):
         self.camera.start()
 
         # Grab the initial image so we know the camera is initialized.
-        self.get_image()
+        self.get_image(block=True)
 
         # Start saving the video if we need to.
         (width, height, _) = self.image.shape
         video_name = '../src/data/video_%s_%s.avi' % (self.dagger.i, self.dagger.j)
         self.video = cv2.VideoWriter(video_name, -1, 1, (width, height))
+        return self.check_camera()
 
     def init_controller(self):
         """ Initializes the controller thread.
@@ -130,25 +146,25 @@ class Parrot(object):
         self.controller = controller.Controller(self.cmd_queue, self.cmd_bucket)
         self.controller.daemon = True
         self.controller.start()
+        return self.check_controller()
 
     def init_receiver(self):
         """ Initializes the receiver thread.
         """
         self.nav_queue = Queue.Queue(maxsize=1)
         self.nav_bucket = Queue.Queue()
-        self.receiver = receiver.Receiver(self.nav_queue, self.nav_bucket)
+        self.receiver = receiver.Receiver(self.nav_queue, self.nav_bucket, self.nav_rate)
         self.receiver.daemon = True
         self.receiver.start()
 
         # Grab the initial nav data so we know the receiver is initialized.
-        self.get_navdata()
+        self.get_navdata(block=True)
+        return self.check_receiver()
 
     def init_tracking(self, bound_box):
         """ Initializes tracking. Make sure the camera is initialized before
             calling this function.
         """
-        assert self.image is not None
-
         if bound_box is None:
             raise bounding_box.BoundingBoxError()
         elif len(bound_box) != 2:
@@ -161,9 +177,6 @@ class Parrot(object):
         """ Initializes feature extraction. Make sure the camera and receiver
             are initialized before calling this function.
         """
-        assert self.image is not None
-        assert self.navdata is not None
-
         # Grab an example window from the initial image to feed the optical flow
         # feature extractor (use a non border window).
         windows = camera.Camera.get_windows(self.image, self.window_size, self.overlap)
@@ -173,8 +186,8 @@ class Parrot(object):
         self.extractor_opt_flow = optical_flow.OpticalFlow(small_image)
         self.extractor_hough_trans = hough_transform.HoughTransform()
         self.extractor_laws_mask = laws_mask.LawsMask()
-        # self.extractor_cmd_history = history.CmdHistory(self.cmd_history_length, self.fps)
-        self.extractor_nav_history = history.NavHistory()
+        self.extractor_cmd_history = history.CmdHistory(self.cmd_history_feats, self.cmd_history_length)
+        self.extractor_nav_history = history.NavHistory(self.nav_history_feats, self.nav_history_length)
 
     def check_remote(self):
         """ Checks the remote thread to see if it's okay.
@@ -204,7 +217,7 @@ class Parrot(object):
 
         # Grab any exceptions it may have generated.
         try:
-            error = self.camera_bucket.get(block=False)
+            error = self.image_bucket.get(block=False)
             raise error
         except Queue.Empty:
             pass
@@ -224,7 +237,7 @@ class Parrot(object):
 
         # Grab any exceptions it may have generated.
         try:
-            error = self.controller_bucket.get(block=False)
+            error = self.cmd_bucket.get(block=False)
             raise error
         except Queue.Empty:
             pass
@@ -262,11 +275,6 @@ class Parrot(object):
             function. Allow the calling module to set the rate at which images
             are received from the camera thread.
         """
-        assert self.image is not None
-        assert self.extractor_opt_flow is not None
-        assert self.extractor_hough_trans is not None
-        assert self.extractor_laws_mask is not None
-
         # Get the windows from the current image.
         windows = camera.Camera.get_windows(self.image, self.window_size, self.overlap)
 
@@ -315,10 +323,6 @@ class Parrot(object):
             calling module to set the rate at which navigation data is received
             from the receiver thread.
         """
-        assert self.navdata is not None
-        # assert self.extractor_cmd_history is not None
-        # assert self.extractor_nav_history is not None
-
         # Get the command history features.
         feats_cmd_history = self.extractor_cmd_history.extract()
         feats_nav_history = self.extractor_nav_history.extract()
@@ -331,24 +335,24 @@ class Parrot(object):
         feats = np.hstack((visual_features, nav_features))
         return feats
 
-    def get_navdata(self):
+    def get_navdata(self, block=False):
         """ Receives the most recent navigation data from the drone. Calling
             module should call this function in a loop to get navigation data
             continuously. Make sure the receiver is initialized.
         """
         try:
-            self.navdata = self.nav_queue.get(block=False)
+            self.navdata = self.nav_queue.get(block=block)
         except Queue.Empty:
             pass
         return self.navdata
 
-    def get_image(self):
+    def get_image(self, block=False):
         """ Receives the most recent image from the drone. Calling module should
             call this function in a loop to get images continuously. Make sure
             the camera is initialized.
         """
         try:
-            self.image = self.image_queue.get(block=False)
+            self.image = self.image_queue.get(block=block)
         except Queue.Empty:
             pass
 
@@ -358,14 +362,14 @@ class Parrot(object):
 
         return self.image
 
-    def get_cmd(self):
+    def get_cmd(self, block=False):
         """ Receives the most recent command from the remote. Calling module
             should call this function in a loop to get the the commands
             continuously. Make sure the remote is initialized.
         """
         self.cmd = self.default_cmd.copy()
         try:
-            self.cmd = self.remote_queue.get(block=False)
+            self.cmd = self.remote_queue.get(block=block)
         except Queue.Empty:
             pass
         return self.cmd
@@ -456,13 +460,13 @@ def _test_parrot():
     """
     pdb.set_trace()
 
-    fps = 2
+    nav_rate = 1
     save = True
     iterations = 3
     trajectories = 2
-    parrot = Parrot(fps, save, iterations, trajectories)
+    parrot = Parrot(save, iterations, trajectories)
     parrot.init_camera()
-    parrot.init_receiver()
+    parrot.init_receiver(nav_rate)
     parrot.init_feature_extract()
 
     while True:

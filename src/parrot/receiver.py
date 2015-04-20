@@ -23,11 +23,11 @@ class ReceiverError(Exception):
 class Receiver(threading.Thread):
     """ Handles the receiving of navigation data from the drone.
     """
-    def __init__(self, queue, bucket):
+    def __init__(self, queue, bucket, qps):
         threading.Thread.__init__(self)
         self.queue = queue
         self.bucket = bucket
-        self.qps = 1  # number of queries per second (*not really*)
+        self.qps = qps  # number of queries per second (*not really*)
         self.bufsize = 8192
 
     def run(self):

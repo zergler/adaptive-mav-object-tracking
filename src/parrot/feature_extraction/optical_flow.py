@@ -135,7 +135,8 @@ def _test_optical_flow_get_image(stream, opt_flow):
     # Manually make sure that the returned images look right.
     while stream.isOpened():
         (ret, frame) = stream.read()
-        assert ret is True
+        if not ret:
+            break
         flow = opt_flow.extract(frame)
         flow_frame = OpticalFlow.get_image(flow)
         cv2.imshow("frame", flow_frame)

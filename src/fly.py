@@ -1,6 +1,8 @@
 #!/usr/bin/env python2.7
 
-""" A tool that allows the user to fly the drone easily from the keyboard.
+""" A tool that allows the user to fly the Parrot AR Drone 2.0 easily using the
+    keyboard or a gamepad remote USB controller connected to the computer. The
+    tool is used to train a learning algorithm by dataset aggregation (DAgger).
 """
 
 import argparse
@@ -39,34 +41,46 @@ class FlyToolArgs(object):
         date = '02/21/15'
         author = 'Igor Janjic'
         organ = 'Graduate Research at Virginia Tech'
-        desc = 'A tool that allows the user to easily fly a Parrot AR Drone 2.0.'
+        desc = 'A tool that allows the user to fly the Parrot AR Drone 2.0 easily using the keyboard or a gamepad remote USB controller connected to the computer. The tool is used to train a learning algorithm by dataset aggregation (DAgger).'
         epil = 'Application %s version %s. Created by %s on %s for %s.' % (name, version, author, date, organ)
 
         # Arguments help.
-        regressor_help = "The type of learning alrogorithm to use. Use 'tkhonov' for Tikhonov regression and 'ordinary_least_squares' for ordinary least squares linear regression."
-        iterations_help = 'The number of iterations of leanring to do.'
+        address_help = 'The addresses of the controller server and receiver server.'
+        learning_help = "The type of learning algorithm to use. Use 'tkhonov' for Tikhonov regression or 'ordinary_least_squares' for ordinary least squares linear regression."
+        iterations_help = 'The number of iterations of learning to do.'
         trajectories_help = 'The number of trajectories to include per iteration of learning.'
+        frame_rate_help = 'The number of times per second to query the camera for images. Default is 5 frames/s.'
+        remote_rate_help = 'The number of times per second to query the remote for commands. Default is 2 queries/s.'
+        nav_rate_help = 'The number of times per second to query the receiver for navigation data. Default is 1 queries/s.'
+
         help_help = 'Show this help message and exit.'
-        gui_help = 'Use this flag if you want to use the GUI.'
-        save_help = 'Use this argument if you want to record the camera as mpeg. If so, pass the name of the files the stream will be saved in.'
-        verb_help = 'Increase the output verbosity.'
+        gui_help = 'Use this flag if you want to use the GUI. Default is to not launch the GUI.'
+        save_help = 'Use this argument if you want to record the camera as mpeg. Default is to save the video for the current iteration and trajectory with the filename samples/video_i_j.mpeg, where i is the current iteration and j is the current trajectory.'
+        verbosity_help = 'Increase the output verbosity.'
 
         # Argparser.
         self.arg_parser = argparse.ArgumentParser(prog=name, description=desc, epilog=epil, add_help=False)
         required_args = self.arg_parser.add_argument_group('Required arguments', '')
         optional_args = self.arg_parser.add_argument_group('Optional arguments', '')
 
-        required_args.add_argument('-r', '--regressor', required=True, type=str, dest='regressor', help=regressor_help)
+        required_args.add_argument('-a', '--address', required=True, type=str, nargs=2, help=address_help)
+        required_args.add_argument('-l', '--learning', required=True, type=str, help=learning_help)
         required_args.add_argument('-i', '--iterations', required=True, type=int, help=iterations_help)
         required_args.add_argument('-t', '--trajectories', required=True, type=int, help=trajectories_help)
-
+        
         optional_args.add_argument('-h', '--help', action='help', help=help_help)
-        optional_args.add_argument('-g', '--gui', dest='gui', action='store_true', default=False, help=gui_help)
-        optional_args.add_argument('-v', '--verbosity', dest='verb', action='count', default=0, help=verb_help)
-        optional_args.add_argument('-s', '--save', dest='save', action='store_true', help=save_help)
+        optional_args.add_argument('-g', '--gui', action='store_true', default=False, help=gui_help)
+        optional_args.add_argument('-v', '--verbosity', action='count', default=0, help=verbosity_help)
+        optional_args.add_argument('-s', '--save', action='store_true', default=True, help=save_help)
+
+        optional_args.add_argument('-f', '--frame-rate', default=5, type=int, help=frame_rate_help)
+        optional_args.add_argument('-r', '--remote-rate', default=2, type=int, help=remote_rate_help)
+        optional_args.add_argument('-n', '--nav-rate', default=1, type=int, help=nav_rate_help)
 
     def parse(self):
         self.args = self.arg_parser.parse_args()
+
+        # Parse the address argument.
 
         # Parse the save argument.
         if self.args.save is not None:
@@ -84,48 +98,61 @@ class FlyTool(object):
         drone seamlessly. Also, it handles other things like printing debug
         information and saving saves.
     """
-    def __init__(self, gui, verb, save, iterations, trajectories, regressor):
-        self.gui = gui
-        self.verb = verb
-        self.save = save
+    def __init__(self, address, learning, iterations, trajectories, gui, save, verbosity, frame_rate, remote_rate, nav_rate):
+        self.address = address
+        self.learning = learning
         self.iterations = iterations
         self.trajectories = trajectories
-        self.regressor = regressor
+        self.gui = gui
+        self.save = save
+        self.verbosity = verbosity
+        self.frame_rate = frame_rate
+        self.remote_rate = remote_rate
+        self.nav_rate = nav_rate
+
+        import pdb
         pdb.set_trace()
 
     def start(self):
         """ Starts the flying tool.
         """
         # Print out some debug information.
-        if self.verb >= 0:
+        if self.verbosity >= 0:
             print('Parrot AR 2 Flying Tool')
-        if self.verb >= 1:
+        if self.verbosity >= 1:
             if self.gui:
                 print(':: GUI flag set.')
-            print(':: Verbosity set to %d.' % self.verb)
+            print(':: Verbosity set to %d.' % self.verbosity)
             print(':: Accessing controller server at: localhost:9000.')
-            print(':: Accessing navigation data server at : localhost:9001.')
+            print(':: Accessing navigation data server at: localhost:9001.')
             print(':: Accessing camera stream server at: tcp://192.168.1.1:5555.')
             if self.save:
                 if self.save:
-                    print(':: Saving front camera stream to file: %s.' % self.fc_filename)
+                    print(':: Saving camera stream.')
 
         # Create the drone object.
         self.speed = 0.3
-        self.fps = 2
-        self.drone = parrot.Parrot(self.fps, self.save, self.iterations, self.trajectories, self.regressor)
-        try:
-            self.drone.init_remote()
-            self.drone.init_camera()
-            self.drone.init_controller()
-            self.drone.init_receiver()
-            self.drone.init_feature_extract()
-        except Exception:
-            pass
+        self.drone = parrot.Parrot(self.address,
+                                   self.learning,
+                                   self.iterations,
+                                   self.trajectories,
+                                   self.save,
+                                   self.frame_rate,
+                                   self.remote_rate,
+                                   self.nav_rate)
 
-        if self.gui:
-            self.gui = self.create_gui()
-            self.gui.run()
+        remote_init = self.drone.init_remote()
+        camera_init = self.drone.init_camera()
+        controller_init = self.drone.init_controller()
+        receiver_init = self.drone.init_receiver()
+        self.drone.init_feature_extract()
+
+        # Only start the gui if all of the threads have been successfully
+        # initialized and the user wants to use it.
+        if remote_init and camera_init and controller_init and receiver_init:
+            if self.gui:
+                self.gui = self.create_gui()
+                self.gui.run()
 
     def get_features(self):
         feats = self.drone.get_features()
@@ -136,7 +163,6 @@ class FlyTool(object):
     def get_object_to_track(self):
         """ Gets the object to track from the user.
         """
-
         # Get the ROI from the user.
         bound_box = tracking.bounding_box.BoundingBox(self.frame)
         clone = self.frame.copy()
@@ -212,54 +238,54 @@ class FlyTool(object):
 
             # Flying keys (persistent).
             if char_pressed == 'd':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to fly right at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.fly_right(self.fly.speed)
             elif char_pressed == 'a':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to fly left at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.fly_left(self.fly.speed)
             elif char_pressed == 's':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to fly backward at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.fly_backward(self.fly.speed)
             elif char_pressed == 'w':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to fly forward at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.fly_forward(self.fly.speed)
             elif char_pressed == 'q':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to turn left at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.turn_left(self.fly.speed)
             elif char_pressed == 'e':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to turn right at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.turn_right(self.fly.speed)
             elif char_pressed == 'r':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to fly up at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.fly_up(self.fly.speed)
             elif char_pressed == 'f':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to fly down at speed %0.1f.' % self.fly.speed)
                 self.fly.drone.fly_down(self.fly.speed)
 
             # Other keys.
             elif char_pressed == 't':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to take off.')
                 self.fly.drone.takeoff()
             elif char_pressed == 'l':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to land')
                 self.fly.drone.land()
             elif char_pressed == 'c':
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Sending command to change camera.')
                 self.fly.drone.change_camera()
             elif char_pressed == ',':
                 self.fly.speed += 1
-                if self.fly.verb >= 1:
+                if self.fly.verbosity >= 1:
                     print('Changing speed to %s' + str(self.fly.speed))
 
         def key_release(self, event):
@@ -272,7 +298,7 @@ class FlyTool(object):
 
         def update_remote(self):
             # Update this function every once in a while.
-            self.root.after(150, self.update_remote)
+            self.root.after(self.fly.remote_rate, self.update_remote)
 
             # Execute commands from the drone.
             cmd = self.fly.drone.get_cmd()
@@ -296,7 +322,16 @@ def main():
     try:
         fa = FlyToolArgs()
         fa.parse()
-        f = FlyTool(fa.args.gui, fa.args.verb, fa.args.save, fa.args.iterations, fa.args.trajectories, fa.args.regressor)
+        f = FlyTool(fa.args.address,
+                    fa.args.learning,
+                    fa.args.iterations,
+                    fa.args.trajectories,
+                    fa.args.gui,
+                    fa.args.save,
+                    fa.args.verbosity,
+                    fa.args.frame_rate,
+                    fa.args.remote_rate,
+                    fa.args.nav_rate)
         f.start()
     except FlyError as e:
         e.print_error()
@@ -305,7 +340,7 @@ def main():
         print('\nClosing.')
         sys.exit(1)
     except Exception:
-        sys.exc_info()
+        print(sys.exc_info())
         sys.exit(1)
 
 if __name__ == '__main__':

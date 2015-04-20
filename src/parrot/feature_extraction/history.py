@@ -76,10 +76,9 @@ def low_pass_sinc_window(array, spacing):
 class CmdHistory(object):
     """ Command history features.
     """
-    def __init__(self, num_feats, max_length, period):
-        self.num_feats = num_feats  # does not guarantee there will be 7
+    def __init__(self, num_feats, max_length):
+        self.num_feats = num_feats
         self.max_length = max_length
-        self.period = period
         self.history = np.zeros((4, max_length))
 
         # Create the spacing for the exponentially decreasing time periods.
@@ -112,10 +111,9 @@ class CmdHistory(object):
 class NavHistory(object):
     """ Navigation history features.
     """
-    def __init__(self, num_feats, max_length, period):
-        self.num_feats = 7  # does not guarantee there will be 7
+    def __init__(self, num_feats, max_length):
+        self.num_feats = num_feats
         self.max_length = max_length
-        self.period = period
         self.history = np.zeros((1, max_length))
 
         # Create the spacing for the exponentially decreasing time periods.
@@ -155,8 +153,7 @@ def _test_command_history():
     pdb.set_trace()
     num_feats = 7
     max_length = 35
-    period = 0.1
-    cmd_history = CmdHistory(num_feats, max_length, period)
+    cmd_history = CmdHistory(num_feats, max_length)
 
     # Create some test commands.
     cmds = []
