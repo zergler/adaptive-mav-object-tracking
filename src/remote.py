@@ -2,10 +2,10 @@
 
 """ Remote control module.
 
-    Remote control module for controlling the drone using a simple gamepad.
-    Keyboard presses won't work for executing expert's policies since multiple
-    button presses cannot be registered. Also, a gamepad will allow better and
-    more fine-tuned control during training.
+    Remote control module for controlling the drone using a simple gamepad or
+    using the keyboard. Keyboard presses won't work well for executing expert's
+    policies since controlling the drone will be harder. A gamepad will allow
+    better and more fine-tuned control during training.
 """
 
 import pygame
@@ -28,8 +28,9 @@ class RemoteError(Exception):
 
 
 class Remote(threading.Thread):
-    """ Handles the conversion of gamepad inputs to drone commands. This thread
-        runs as long as the pygame module is correctly initialized.
+    """ Handles the conversion of gamepad inputs and keyboard intpus to drone
+        commands. This thread runs as long as the pygame module is correctly
+        initialized.
     """
     def __init__(self, queue, bucket):
         threading.Thread.__init__(self)
@@ -111,6 +112,75 @@ class Remote(threading.Thread):
         if (abs(cmd['X']) < thresh) and (abs(cmd['Y']) < thresh) and (abs(cmd['Z']) < thresh) and (abs(cmd['R']) < thresh):
             cmd['S'] = 1
         return cmd
+
+    #def key_press(self, event):
+    #    """ Commands the drone to fly using key presses.
+    #    """
+    #    char_pressed = event.keysym
+
+    #    # Flying keys (persistent).
+    #    if char_pressed == 'd':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to fly right at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.fly_right(self.fly.speed)
+    #    elif char_pressed == 'a':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to fly left at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.fly_left(self.fly.speed)
+    #    elif char_pressed == 's':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to fly backward at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.fly_backward(self.fly.speed)
+    #    elif char_pressed == 'w':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to fly forward at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.fly_forward(self.fly.speed)
+    #    elif char_pressed == 'q':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to turn left at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.turn_left(self.fly.speed)
+    #    elif char_pressed == 'e':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to turn right at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.turn_right(self.fly.speed)
+    #    elif char_pressed == 'r':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to fly up at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.fly_up(self.fly.speed)
+    #    elif char_pressed == 'f':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to fly down at speed %0.1f.' % self.fly.speed)
+    #        self.fly.drone.fly_down(self.fly.speed)
+
+    #    # Other keys.
+    #    elif char_pressed == 't':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to take off.')
+    #        self.fly.drone.takeoff()
+    #    elif char_pressed == 'l':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to land')
+    #        self.fly.drone.land()
+    #    elif char_pressed == 'c':
+    #        if self.fly.verbosity >= 1:
+    #            print('Sending command to change camera.')
+    #        if self.fly.drone.active_camera == 'FRONT':
+    #            self.fly.drone.change_camera('BOTTOM')
+    #        else:
+    #            self.fly.drone.change_camera('FRONT')
+    #    elif char_pressed == ',':
+    #        self.fly.speed += 1
+    #        if self.fly.verbosity >= 1:
+    #            print('Changing speed to %s' + str(self.fly.speed))
+
+    #def key_release(self, event):
+    #    """ Commands the drone to stop when the relevant keys are released.
+    #    """
+    #    char_released = event.keysym
+    #    drone_stop_list = ['d', 'a', 's', 'w', 'q', 'e', 'r', 'f']
+    #    if char_released in drone_stop_list:
+    #        self.drone.stop()
+
 
 
 def _test_remote():
