@@ -1,21 +1,25 @@
 #!/usr/bin/env python2.7
 
-""" A tool that allows the user to fly the Parrot AR Drone 2.0 easily using the
+""" Fly module.
+
+    A tool that allows the user to fly the Parrot AR Drone 2.0 easily using the
     keyboard or a gamepad remote USB controller connected to the computer. The
     tool is used to train a learning algorithm by dataset aggregation (DAgger).
 """
 
 import argparse
 import cv2
+import math
 import numpy as np
 import sys
+import traceback
 
 import Tkinter as tk
 from PIL import ImageTk, Image
 
 # Igor's modules.
-from parrot import parrot
-from parrot import tracking
+import parrot
+import tracking
 
 
 class FlyError(Exception):
@@ -67,7 +71,7 @@ class FlyToolArgs(object):
         required_args.add_argument('-l', '--learning', required=True, type=str, help=learning_help)
         required_args.add_argument('-i', '--iterations', required=True, type=int, help=iterations_help)
         required_args.add_argument('-t', '--trajectories', required=True, type=int, help=trajectories_help)
-        
+
         optional_args.add_argument('-h', '--help', action='help', help=help_help)
         optional_args.add_argument('-g', '--gui', action='store_true', default=False, help=gui_help)
         optional_args.add_argument('-v', '--verbosity', action='count', default=0, help=verbosity_help)
@@ -109,8 +113,6 @@ class FlyTool(object):
         self.frame_rate = frame_rate
         self.remote_rate = remote_rate
         self.nav_rate = nav_rate
-
-        import pdb
         pdb.set_trace()
 
     def start(self):
@@ -154,11 +156,19 @@ class FlyTool(object):
                 self.gui = self.create_gui()
                 self.gui.run()
 
-    def get_features(self):
-        feats = self.drone.get_features()
+    def save_features(self, features):
         with open('feat.dat', 'a') as out:
-            np.savetxt(out, feats)
+            np.savetxt(out, features)
             out.write('\n')
+
+    def save_image(self, image, cmd):
+        directory = 'data/'
+        if self.save:
+            out = directory + 'image_%s_%s_%s.jpg' % (self.dagger.i, self.dagger.j, self.t)
+            image_bgr = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(out, image_bgr)
+            self.t += 1
+
 
     def get_object_to_track(self):
         """ Gets the object to track from the user.
@@ -210,7 +220,6 @@ class FlyTool(object):
             self.update_video()
             self.root.mainloop()
             self.fly.drone.exit()
-            sys.exit(0)
 
         def create_gui(self):
             """ Creates the gui.
@@ -282,7 +291,10 @@ class FlyTool(object):
             elif char_pressed == 'c':
                 if self.fly.verbosity >= 1:
                     print('Sending command to change camera.')
-                self.fly.drone.change_camera()
+                if self.fly.drone.active_camera == 'FRONT':
+                    self.fly.drone.change_camera('BOTTOM')
+                else:
+                    self.fly.drone.change_camera('FRONT')
             elif char_pressed == ',':
                 self.fly.speed += 1
                 if self.fly.verbosity >= 1:
@@ -298,24 +310,30 @@ class FlyTool(object):
 
         def update_remote(self):
             # Update this function every once in a while.
-            self.root.after(self.fly.remote_rate, self.update_remote)
+            self.root.after(int(math.floor(1000.0/self.fly.remote_rate)), self.update_remote)
 
             # Execute commands from the drone.
-            cmd = self.fly.drone.get_cmd()
-            self.fly.drone.send_cmd(cmd)
+            self.cmd = self.fly.drone.get_cmd()
+            self.fly.drone.send_cmd(self.cmd)
 
         def update_video(self):
             # Update this function every once in a while.
-            self.root.after(150, self.update_video)
+            #self.root.after(int(math.floor(1000.0/self.fly.frame_rate)), self.update_video)
+
+            # Save the images and features if the user has asked to.
+            pdb.set_trace()
             self.frame = self.fly.drone.get_image()
+            self.feats = self.fly.drone.get_features()
+            self.save_image(self.frame, self.cmd)
+            self.save_features(self.feats)
+
+            # Display the image.
             if self.frame is not None:
                 pil_frame = Image.fromarray(self.frame)
                 pil_frame = pil_frame.resize((400, 300), Image.ANTIALIAS)
                 photo_frame = ImageTk.PhotoImage(pil_frame)
                 self.cam_label.config(image=photo_frame)
                 self.cam_label.image = photo_frame
-
-            # Get the features and append to the data file.
 
 
 def main():
@@ -334,13 +352,16 @@ def main():
                     fa.args.nav_rate)
         f.start()
     except FlyError as e:
+        f.parrot.exit()
         e.print_error()
         sys.exit(1)
     except KeyboardInterrupt:
+        f.parrot.exit()
         print('\nClosing.')
         sys.exit(1)
     except Exception:
-        print(sys.exc_info())
+        pdb.set_trace()
+        print(traceback.format_exc())
         sys.exit(1)
 
 if __name__ == '__main__':
