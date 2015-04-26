@@ -386,66 +386,7 @@ class Parrot(object):
         self.land()
         cv2.destroyAllWindows()
 
-    def land(self):
-        cmd = self.default_cmd.copy()
-        cmd['L'] = True
-        self.send_cmd(cmd)
-
-    def takeoff(self):
-        cmd = self.default_cmd.copy()
-        cmd['T'] = True
-        self.send_cmd(cmd)
-
-    def stop(self):
-        cmd = self.default_cmd.copy()
-        cmd['S'] = True
-        self.send_cmd(cmd)
-
-    def turn_left(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['R'] = -speed
-        self.send_cmd(cmd)
-
-    def turn_right(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['R'] = speed
-        self.send_cmd(cmd)
-
-    def fly_up(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['Z'] = speed
-        self.send_cmd(cmd)
-
-    def fly_down(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['Z'] = -speed
-        self.send_cmd(cmd)
-
-    def fly_forward(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['Y'] = speed
-        self.send_cmd(cmd)
-
-    def fly_backward(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['Y'] = -speed
-        self.send_cmd(cmd)
-
-    def fly_left(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['X'] = -speed
-        self.send_cmd(cmd)
-
-    def fly_right(self, speed):
-        cmd = self.default_cmd.copy()
-        cmd['X'] = speed
-        self.send_cmd(cmd)
-
-    def change_camera(self, camera):
-        cmd = self.fly.default_cmd.copy()
-        cmd['C'] = camera
-        self.send_cmd(cmd)
-
+    
 
 def _test_parrot():
     """ Tests the parrot module

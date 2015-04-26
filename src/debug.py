@@ -3,6 +3,9 @@
 """ Debug module.
 """
 
+import Queue
+
+
 class DebugError(Exception):
     """ Base exception for the module.
     """
@@ -19,9 +22,30 @@ class DebugError(Exception):
 class Debug(object):
     """ Prints out debug information and logs it if need be.
     """
-    def __init__(self, verbosity):
+    def __init__(self, verbosity, debug_queue, error_queue):
         self.verbosity = verbosity
+        self.debug_queue = debug_queue
+        self.error_queue = error_queue
 
-    def debug(self, msg, priority):
-        if priority >= self.verbosity:
-            print(msg)
+    def debug(self):
+        # Get all the messages in the queue and print them out.
+        while True: 
+            msg = None
+            try:
+                msg = self.debug_queue.get(block=False)
+                if msg is not None:
+                    if msg['PRIORITY'] >= self.verbosity:
+                        print(msg['MSG'])
+            except Queue.Empty:
+                break
+
+        # Get all messages in the error queue and print them out.
+        while True:
+            error = None 
+            try:
+                error = self.error_queue.get(block=False)
+                if error is not None:
+                    raise error
+            except Queue.Empty:
+                break
+

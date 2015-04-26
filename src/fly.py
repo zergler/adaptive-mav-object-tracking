@@ -11,6 +11,7 @@ import cv2
 import math
 import sys
 import traceback
+import Queue
 import numpy as np
 
 # Igor's modules.
@@ -51,24 +52,24 @@ class FlyTool(object):
         self.remote_rate = remote_rate
         self.nav_rate = nav_rate
 
-        self.debug = debug.Debug(verbosity)
+        self.debug_queue = Queue.Queue()
+        self.debugger = debug.Debug(verbosity, debug_queue)
         pdb.set_trace()
 
     def start(self):
         """ Starts the flying tool.
         """
-        self.debug.print_debug('Parrot AR 2 Flying Tool')
+        self.debug_queue.put({'MSG': 'Parrot AR 2 Flying Tool', 'PRIORITY': 1})
         if self.gui:
-            self.debug.print_debug(':: GUI flag set.')
-        self.debug.debug(':: Verbosity set to %d.' % self.verbosity)
-        self.debug.debug(':: Accessing controller server at: localhost:9000.')
-        self.debug.debug(':: Accessing navigation data server at: localhost:9001.')
-        self.debug.debug(':: Accessing camera stream server at: tcp://192.168.1.1:5555.')
+            self.debug_queue.put({'MSG': ':: GUI flag set.', 'PRIORITY': 1}))
+        self.debug_queue.put({'MSG': ':: Verbosity set to %d.' % self.verbosity, 'PRIORITY': 1}))
+        self.debug_queue.put({'MSG': ':: Accessing controller server at: localhost:9000.', 'PRIORITY': 1})
+        self.debug_queue.put({'MSG': ':: Accessing navigation data server at: localhost:9001.', 'PRIORITY': 1})
+        self.debug.queue.put({'MSG': ':: Accessing camera stream server at: tcp://192.168.1.1:5555.', 'PRIORITY': 1}))
         if self.save:
-            self.debug.debug(':: Saving camera stream.')
+            self.debug_queue.put({'MSG': ':: Saving camera stream.', 'PRIORITY': 1})
 
         # Create the drone object.
-        self.speed = 0.3
         self.drone = parrot.Parrot(self.address,
                                    self.learning,
                                    self.iterations,
