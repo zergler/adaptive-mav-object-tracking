@@ -168,7 +168,9 @@ def _test_command_history():
     except Exception:
         print(sys.exc_info())
 
+
 if __name__ == '__main__':
     import pdb
     import sys
-    _test_command_history()
+    #_test_command_history()
+    _test_navigation_history()

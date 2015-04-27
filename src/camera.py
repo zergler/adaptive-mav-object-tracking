@@ -4,46 +4,39 @@
 """
 
 import cv2
+import debug
 import math
 import threading
 import Queue
-
-
-class CameraError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: camera'
-        default_error = '%s: an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
 
 
 class Camera(threading.Thread):
     """ Encapsulates the camera on the AR Parrot Drone 2.0. Handles the
         receiving of images from the drone using OpenCV.
     """
-    def __init__(self, address, queue, bucket):
+    def __init__(self, debug_queue, error_queue, address, queue):
         threading.Thread.__init__(self)
+        self.debug_queue = debug_queue
+        self.error_queue = error_queue
         self.address = address
         self.queue = queue
-        self.bucket = bucket
 
     def run(self):
-        cap = cv2.VideoCapture(self.address)
+        cap = self.get_cap()
         while cap.isOpened():
             (ret, frame) = cap.read()
-            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # If the image needs to converted to PIL, uncomment this line.
+            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if ret:
                 try:
-                    self.queue.put(image_rgb, block=False)
+                    self.queue.put(frame, block=False)
                 except Queue.Full:
                     pass
             else:
                 cap.release()
+
+    def get_cap(self):
+        return cv2.VideoCapture(self.address)
 
     @staticmethod
     def get_windows(image, window_size, percent_overlap):
@@ -83,19 +76,35 @@ def _test_camera():
 
 
 def _test_get_image():
+    # Set up debug.
+    verbosity = 1
+    error_queue = Queue.Queue()
+    debug_queue = Queue.Queue()
+    debugger = debug.Debug(verbosity, debug_queue, error_queue)
+
     # Make sure the images look right.
     image_queue = Queue.Queue(maxsize=1)
-    image_bucket = Queue.Queue()
     camera_address = 'tcp://192.168.1.1:5555'
-    camera = Camera(camera_address, image_queue, image_bucket)
+    camera = Camera(debug_queue, error_queue, camera_address, image_queue)
     camera.daemon = True
     camera.start()
 
-    while True:
-        cv2.imshow('image', image_queue.get())
-        key = cv2.waitKey(1) & 0xff
-        if key == ord('q'):
-            break
+    try:
+        while True:
+            debugger.debug()
+            try:
+                image = image_queue.get(block=False)
+                cv2.imshow('image', image)
+                key = cv2.waitKey(1) & 0xff
+                if key == ord('q'):
+                    break
+            except:
+                pass
+        debugger.debug()
+    except debug.Error as e:
+        e.print_error()
+    except KeyboardInterrupt:
+        sys.exit(0)
 
 
 def _test_get_windows(show_window=False):
@@ -123,4 +132,5 @@ def _test_get_windows(show_window=False):
 
 if __name__ == '__main__':
     import pdb
+    import sys
     _test_camera()

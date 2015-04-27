@@ -4,20 +4,8 @@
 """
 
 import argparse
+import debug
 import socket
-
-
-class FlyArgsError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error:'
-        default_error = '%s an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
 
 
 class FlyArgs(object):
@@ -39,7 +27,7 @@ class FlyArgs(object):
         iterations_help = 'The number of iterations of learning to do.'
         trajectories_help = 'The number of trajectories to include per iteration of learning.'
         frame_rate_help = 'The number of times per second to query the camera for images. Default and minimum is 1 frame/s.'
-        remote_rate_help = 'The number of times per second to query the remote for commands. Default and minimum is 1 query/s.'
+        remote_rate_help = 'The number of times per second to query the remote for commands. Default and minimum is 10 query/s.'
         nav_rate_help = 'The number of times per second to query the receiver for navigation data. Default and minimum is 1 query/s.'
 
         help_help = 'Show this help message and exit.'
@@ -63,7 +51,7 @@ class FlyArgs(object):
         optional_args.add_argument('-s', '--save', action='store_true', default=True, help=save_help)
 
         optional_args.add_argument('-f', '--frame-rate', default=1, type=int, help=frame_rate_help)
-        optional_args.add_argument('-r', '--remote-rate', default=1, type=int, help=remote_rate_help)
+        optional_args.add_argument('-r', '--remote-rate', default=10, type=int, help=remote_rate_help)
         optional_args.add_argument('-n', '--nav-rate', default=1, type=int, help=nav_rate_help)
 
     def parse(self):
@@ -97,7 +85,7 @@ class FlyArgs(object):
         # Try to split the command server address string into ip and port.
         address = self.args.address[i].split(':')
         if len(address) != 2:
-            raise FlyArgsError('the address of the %s server does not have a valid port' % server)
+            raise debug.Error('args', 'the address of the %s server does not have a valid port' % server)
         else:
             # Make sure the ip is valid (this will throw an error if it's not).
             if address[0] == 'localhost':
@@ -105,29 +93,29 @@ class FlyArgs(object):
             try:
                 socket.inet_aton(address[0])
             except socket.error:
-                raise FlyArgsError('the address of the %s server does not have a valid ip' % server)
+                raise debug.Error('args', 'the address of the %s server does not have a valid ip' % server)
             # Make sure the port is valid.
             try:
                 port = int(address[1])
                 if port not in range(9000, 9501):
-                    raise FlyArgsError('the address of the %s server has a port %s not in the valid range 9000 to 9500' % (server, port))
+                    raise debug.Error('args', 'the address of the %s server has a port %s not in the valid range 9000 to 9500' % (server, port))
             except ValueError:
-                raise FlyArgsError('the address of the %s server does not have a valid port' % server)
+                raise debug.Error('args', 'the address of the %s server does not have a valid port' % server)
 
     def _parse_learning(self):
         learning = self.args.learning
         if learning != 'tikhonov' and learning != 'ordinary_least_squares':
-            raise FlyArgsError("%s is not 'tikhonov' or 'ordinary_least_squares" % learning)
+            raise debug.Error('args', "%s is not 'tikhonov' or 'ordinary_least_squares" % learning)
 
     def _parse_iterations(self):
         iterations = self.args.iterations
         if iterations <= 0:
-            raise FlyArgsError('iteration %s is not a positive integer' % iterations)
+            raise debug.Error('args', 'iteration %s is not a positive integer' % iterations)
 
     def _parse_trajectories(self):
         trajectories = self.args.trajectories
         if trajectories <= 0:
-            raise FlyArgsError('trajectory %s is not a positive integer' % trajectories)
+            raise debug.Error('args', 'trajectory %s is not a positive integer' % trajectories)
 
     def _parse_rate(self, i):
         assert i in range(0, 3)
@@ -142,7 +130,7 @@ class FlyArgs(object):
             rate = self.args.nav_rate
 
         if rate <= 0:
-            raise FlyArgsError('%s rate %s is not a positive integer' % (rate_type, rate))
+            raise debug.Error('args', '%s rate %s is not a positive integer' % (rate_type, rate))
 
 
 def _test_fly_args():
@@ -150,7 +138,7 @@ def _test_fly_args():
     fa = FlyArgs()
     try:
         fa.parse()
-    except FlyArgsError as e:
+    except debug.Error as e:
         e.print_error()
     else:
         print('Passed arguments work.')

@@ -9,23 +9,11 @@
 """
 
 import debug
-import pygame
 import threading
+import pygame
 import sys
+import time
 import numpy as np
-
-
-class RemoteError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: remote'
-        default_error = '%s: an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
 
 
 class Remote(threading.Thread):
@@ -33,11 +21,12 @@ class Remote(threading.Thread):
         commands. This thread runs as long as the pygame module is correctly
         initialized.
     """
-    def __init__(self, debug_queue, error_queue, queue):
+    def __init__(self, debug_queue, error_queue, queue, remote_rate):
         threading.Thread.__init__(self)
         self.debug_queue = debug_queue
         self.error_queue = error_queue
         self.queue = queue
+        self.remote_rate = remote_rate
 
         # Flags for errors.
         self.pygame_okay = False
@@ -55,6 +44,7 @@ class Remote(threading.Thread):
             'L': False,
             'S': False
         }
+        self.key_flag = False
 
         # The keys that should issue a stop command when released.
         self.stop_list = [pygame.K_d, pygame.K_a, pygame.K_s, pygame.K_w, pygame.K_q, pygame.K_e, pygame.K_r, pygame.K_f]
@@ -62,13 +52,13 @@ class Remote(threading.Thread):
         # Initialize pygame.
         (_, numfail) = pygame.init()
         if numfail > 0:
-            self.error_queue.put(RemoteError('pygame initialization failed'))
+            self.error_queue.put(debug.Error('remote', 'pygame initialization failed'))
             return
         
         pygame.display.set_mode((100, 100))
-        pygame.display.iconify()
         self.pygame_okay = True
         self.gamepad = None
+        self.check_gamepad_okay()
 
     def run(self):
         try:
@@ -80,27 +70,27 @@ class Remote(threading.Thread):
                     # Replace the keyboard input with gamepad input if a gamepad
                     # is connected.
                     self.check_gamepad_okay()
-                    if self.gamepad_okay:
+                    if self.gamepad_okay and not self.key_flag:
                         inputs_remote = self.get_gamepad()
                     if inputs_remote is not None:
                         self.queue.put(inputs_remote)
+                    time.sleep(1.0/self.remote_rate)
         except:
             exc_error = sys.exc_info()
-            remote_error = RemoteError('%s, %s, %s' % exc_error)
+            remote_error = debug.Error('remote', '%s, %s, %s' % exc_error)
             self.error_queue.put(remote_error)
 
     def check_gamepad_okay(self):
         """ Makes sure the gamepad is running okay.
         """
         # Check that the gamepad is still running.
-        if not pygame.joystick.get_count():
-            # Attempt to reconnect the gamepad.
-            if pygame.joystick.get_count():
-                # Once it's reconnected, reinitialize it.
-                self.gamepad = pygame.joystick.joystick(0)
-                self.gamepad_okay = self.gamepad.get_init()
-            else:
-                self.gamepad_okay = False
+        if pygame.joystick.get_count():
+            # Once it's reconnected, reinitialize it.
+            self.gamepad = pygame.joystick.Joystick(0)
+            self.gamepad.init()
+            self.gamepad_okay = self.gamepad.get_init()
+        else:
+            self.gamepad_okay = False
 
     def get_gamepad(self):
         """ Gets the associated command from the current gamepad inputs.
@@ -143,6 +133,7 @@ class Remote(threading.Thread):
         for event in pygame.event.get():
             # If a key has been pressed down, send the command to the drone.
             if event.type == pygame.KEYDOWN:
+                self.key_flag = True
                 if event.key == pygame.K_d:
                     cmd = self.fly_right(self.default_speed)
                 elif event.key == pygame.K_a:
@@ -159,10 +150,15 @@ class Remote(threading.Thread):
                     cmd = self.fly_up(self.default_speed)
                 elif event.key == pygame.K_f:
                     cmd = self.fly_down(self.default_speed)
+                elif event.key == pygame.K_t:
+                    cmd = self.takeoff()
+                elif event.key == pygame.K_l:
+                    cmd = self.land()
 
             # If the 'right' key has been released, send the stop command to the
             # drone.
             elif event.type == pygame.KEYUP:
+                self.key_flag = False
                 if event.key in self.stop_list:
                     cmd = self.stop()
         return cmd
@@ -250,8 +246,9 @@ def _test_remote():
     debugger = debug.Debug(verbosity, debug_queue, error_queue)
 
     # Set up remote.
+    remote_rate = 1
     remote_queue = Queue.Queue(maxsize=1)
-    remote = Remote(debug_queue, error_queue, remote_queue)
+    remote = Remote(debug_queue, error_queue, remote_queue, remote_rate)
     remote.daemon = True
     remote.start()
 
@@ -259,12 +256,13 @@ def _test_remote():
     while True:
         try:
             remote_input = remote_queue.get(block=False)
+            print(remote_input)
         except Queue.Empty:
             pass
         try:
             debugger.debug()
             time.sleep(0.1)
-        except RemoteError as e:
+        except debug.Error as e:
             e.print_error()
         except KeyboardInterrupt:
             sys.exit(0)

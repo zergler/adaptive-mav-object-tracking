@@ -21,19 +21,6 @@ import parrot
 import tracking
 
 
-class FlyError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: fly:'
-        default_error = '%s an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
-
-
 class FlyTool(object):
     """ Flying tool.
 
@@ -48,29 +35,33 @@ class FlyTool(object):
         self.trajectories = trajectories
         self.gui = gui
         self.save = save
+        self.verbosity = verbosity
         self.frame_rate = frame_rate
         self.remote_rate = remote_rate
         self.nav_rate = nav_rate
 
         self.debug_queue = Queue.Queue()
-        self.debugger = debug.Debug(verbosity, debug_queue)
-        pdb.set_trace()
+        self.error_queue = Queue.Queue()
+        self.debugger = debug.Debug(verbosity, self.debug_queue, self.error_queue)
 
     def start(self):
         """ Starts the flying tool.
         """
         self.debug_queue.put({'MSG': 'Parrot AR 2 Flying Tool', 'PRIORITY': 1})
         if self.gui:
-            self.debug_queue.put({'MSG': ':: GUI flag set.', 'PRIORITY': 1}))
-        self.debug_queue.put({'MSG': ':: Verbosity set to %d.' % self.verbosity, 'PRIORITY': 1}))
+            self.debug_queue.put({'MSG': ':: GUI flag set.', 'PRIORITY': 1})
+        self.debug_queue.put({'MSG': ':: Verbosity set to %d.' % self.verbosity, 'PRIORITY': 1})
         self.debug_queue.put({'MSG': ':: Accessing controller server at: localhost:9000.', 'PRIORITY': 1})
         self.debug_queue.put({'MSG': ':: Accessing navigation data server at: localhost:9001.', 'PRIORITY': 1})
-        self.debug.queue.put({'MSG': ':: Accessing camera stream server at: tcp://192.168.1.1:5555.', 'PRIORITY': 1}))
+        self.debug_queue.put({'MSG': ':: Accessing camera stream server at: tcp://192.168.1.1:5555.', 'PRIORITY': 1})
         if self.save:
             self.debug_queue.put({'MSG': ':: Saving camera stream.', 'PRIORITY': 1})
 
         # Create the drone object.
-        self.drone = parrot.Parrot(self.address,
+        self.debug_queue.put({'MSG': ':: Initializing parrot.', 'PRIORITY': 1})
+        self.drone = parrot.Parrot(self.debug_queue,
+                                   self.error_queue,
+                                   self.address,
                                    self.learning,
                                    self.iterations,
                                    self.trajectories,
@@ -79,18 +70,36 @@ class FlyTool(object):
                                    self.remote_rate,
                                    self.nav_rate)
 
-        remote_init = self.drone.init_remote()
-        camera_init = self.drone.init_camera()
-        controller_init = self.drone.init_controller()
-        receiver_init = self.drone.init_receiver()
-        self.drone.init_feature_extract()
+        self.debug_queue.put({'MSG': ':: Initializing remote control.', 'PRIORITY': 1})
+        self.drone.init_remote()
 
-        # Only start the gui if all of the threads have been successfully
-        # initialized and the user wants to use it.
-        if remote_init and camera_init and controller_init and receiver_init:
+        self.debug_queue.put({'MSG': ':: Initializing camera.', 'PRIORITY': 1})
+        self.drone.init_camera()
+
+        self.debug_queue.put({'MSG': ':: Initializing controller.', 'PRIORITY': 1})
+        self.drone.init_controller()
+
+        self.debug_queue.put({'MSG': ':: Initializing receiver.', 'PRIORITY': 1})
+        self.drone.init_receiver()
+
+        if self.drone.check_threads():
+            self.debugger.debug()
+            self.debug_queue.put({'MSG': ':: All threads initialized successfully.', 'PRIORITY': 1})
+            self.debug_queue.put({'MSG': ':: Initializing feature extraction.', 'PRIORITY': 1})
+            self.drone.init_feature_extract()
             if self.gui:
+                self.debug_queue.put({'MSG': ':: Initializing GUI.', 'PRIORITY': 1})
                 self.gui = self.create_gui()
-                self.gui.run()
+                #self.gui.run()
+
+        # Run the tool.
+        self.run()
+
+    def run(self):
+        while True:
+            self.debugger.debug()
+            self.update_remote()
+            self.update_video()
 
     def save_features(self, features):
         with open('feat.dat', 'a') as out:
@@ -100,8 +109,9 @@ class FlyTool(object):
     def save_image(self, image, cmd):
         directory = 'data/'
         if self.save:
-            out = directory + 'image_%s_%s_%s.jpg' % (self.dagger.i, self.dagger.j, self.t)
-            image_bgr = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
+            self.debug_queue.put({'MSG': 'Saving new image.', 'PRIORITY': 2})
+            out = directory + 'image_%s_%s_%s.jpg' % (self.drone.dagger.i, self.drone.dagger.j, self.t)
+            # image_bgr = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
             cv2.imwrite(out, image_bgr)
             self.t += 1
 
@@ -148,13 +158,15 @@ class FlyTool(object):
     def update_video(self):
         # int(math.floor(1000.0/self.frame_rate))
         # Save the images and features if the user has asked to.
-        pdb.set_trace()
+        self.debug_queue.put({'MSG': 'Getting image from drone.', 'PRIORITY': 1})
         self.frame = self.drone.get_image()
-        self.feats = self.drone.get_features()
-        self.save_image(self.frame, self.cmd)
-        self.save_features(self.feats)
 
-        # Display the image if the user has asked to.
+        self.debug_queue.put({'MSG': 'Getting features from drone.', 'PRIORITY': 1})
+        self.feats = self.drone.get_features()
+
+        #self.debug_queue.put({'MSG': 'Saving image of drone.', 'Priority': 1})
+        #self.save_image(self.frame, self.cmd)
+        #self.save_features(self.feats)
 
 
 def main():
@@ -172,14 +184,20 @@ def main():
                     fa.args.remote_rate,
                     fa.args.nav_rate)
         f.start()
-    except args.FlyArgsError as e:
-        e.print_error()
-    except FlyError as e:
-        f.parrot.exit()
+    except debug.Error as e:
+        # Try to land the drone.
+        try:
+            f.parrot.exit()
+        except:
+            pass
         e.print_error()
         sys.exit(1)
     except KeyboardInterrupt:
-        f.parrot.exit()
+        # Try to land the drone.
+        try:
+            f.parrot.exit()
+        except:
+            pass
         print('\nClosing.')
         sys.exit(1)
     except Exception:

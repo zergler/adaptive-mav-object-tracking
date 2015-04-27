@@ -15,6 +15,7 @@ import numpy as np
 import remote
 import camera
 import controller
+import debug
 import receiver
 
 # Feature modules.
@@ -31,27 +32,17 @@ from tracking import cam_shift
 from learning import dagger
 
 
-class ParrotError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: parrot'
-        default_error = '%s: an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
-
-
 class Parrot(object):
     """ Encapsulates the AR Parrot Drone 2.0.
 
         Allows access to the drone's front and bottom cameras, the ability to
         send commands, and the ability to read the drone's navigation data.
     """
-    def __init__(self, address, learning, iterations, trajectories, save, frame_rate, remote_rate, nav_rate):
+    def __init__(self, debug_queue, error_queue, address, learning, iterations, trajectories, save, frame_rate, remote_rate, nav_rate):
         (self.controller_address, self.receiver_address) = address
+        self.debug_queue = debug_queue
+        self.error_queue = error_queue
+
         self.learning = learning
         self.iterations = iterations
         self.trajectories = trajectories
@@ -91,7 +82,7 @@ class Parrot(object):
         self.t = 0
 
         # Feature extraction parameters.
-        self.window_size = (5, 3)
+        self.window_size = (15, 7)
         self.overlap = 0.5
         self.cmd_history_feats = 7    # the approximate number of cmd history features
         self.cmd_history_length = 10  # keep a running list of the last 10 cmds
@@ -114,62 +105,54 @@ class Parrot(object):
         """ Initializes the remote control.
         """
         self.remote_queue = Queue.Queue(maxsize=1)
-        self.remote_bucket = Queue.Queue()
-        self.remote = remote.Remote(self.remote_queue, self.remote_bucket)
+        self.remote = remote.Remote(self.debug_queue, self.error_queue, self.remote_queue, self.remote_rate)
         self.remote.daemon = True
         self.remote.start()
 
         # Grab the initial remote data so we know it is initialized.
         self.get_cmd()
-        return self.check_remote()
 
     def init_camera(self):
         """ Initializes the camera thread.
         """
         camera_address = 'tcp://' + self.drone_address + ':' + str(self.ports['VIDEO'])
         self.image_queue = Queue.Queue(maxsize=1)
-        self.image_bucket = Queue.Queue()
-        self.camera = camera.Camera(camera_address, self.image_queue, self.image_bucket)
+        self.camera = camera.Camera(self.debug_queue, self.error_queue, camera_address, self.image_queue)
         self.camera.daemon = True
         self.camera.start()
 
         # Grab the initial image so we know the camera is initialized.
         self.get_image(block=True)
-        return self.check_camera()
 
     def init_controller(self):
         """ Initializes the controller thread.
         """
         self.cmd_queue = Queue.Queue(maxsize=1)
-        self.cmd_bucket = Queue.Queue()
-        self.controller = controller.Controller(self.cmd_queue, self.cmd_bucket)
+        self.controller = controller.Controller(self.debug_queue,self.error_queue, self.cmd_queue)
         self.controller.daemon = True
         self.controller.start()
-        return self.check_controller()
 
     def init_receiver(self):
         """ Initializes the receiver thread.
         """
         self.nav_queue = Queue.Queue(maxsize=1)
-        self.nav_bucket = Queue.Queue()
-        self.receiver = receiver.Receiver(self.nav_queue, self.nav_bucket, self.nav_rate)
+        self.receiver = receiver.Receiver(self.debug_queue, self.error_queue, self.nav_queue, self.nav_rate)
         self.receiver.daemon = True
         self.receiver.start()
 
         # Grab the initial nav data so we know the receiver is initialized.
         self.get_navdata(block=True)
-        return self.check_receiver()
 
     def init_tracking(self, bound_box):
         """ Initializes tracking. Make sure the camera is initialized before
             calling this function.
         """
         if bound_box is None:
-            raise bounding_box.BoundingBoxError()
+            raise debug.Error('parrot', 'invalid bounding box specified.')
         elif len(bound_box) != 2:
-            raise bounding_box.BoundingBoxError()
+            raise debug.Error('parrot', 'invalid bounding box specified.')
         elif (len(bound_box[0]) != 2) or (len(bound_box[1]) != 2):
-            raise bounding_box.BoundingBoxError()
+            raise debug.Error('parrot', 'invalid bounding box specified.')
         self.tracking = cam_shift.CamShift(self.image, bound_box[0], bound_box[1])
 
     def init_feature_extract(self):
@@ -188,84 +171,15 @@ class Parrot(object):
         self.extractor_cmd_history = history.CmdHistory(self.cmd_history_feats, self.cmd_history_length)
         self.extractor_nav_history = history.NavHistory(self.nav_history_feats, self.nav_history_length)
 
-    def check_remote(self):
+    def check_threads(self):
         """ Checks the remote thread to see if it's okay.
         """
         # First make sure it is still running.
-        okay = self.remote.isAlive()
-
-        # Grab any exceptions it may have generated.
-        try:
-            error = self.remote_bucket.get(block=False)
-            raise error
-        except Queue.Empty:
-            pass
-        except remote.RemoteError as e:
-            # If the error is a warning, print the warning, otherwise exit.
-            if e.warning:
-                print(e.msg)
-            else:
-                raise
-        return okay
-
-    def check_camera(self):
-        """ Checks the camera thread to see if it's okay.
-        """
-        # First make sure it is still running.
-        okay = self.camera.isAlive()
-
-        # Grab any exceptions it may have generated.
-        try:
-            error = self.image_bucket.get(block=False)
-            raise error
-        except Queue.Empty:
-            pass
-        except remote.RemoteError as e:
-            # If the error is a warning, print the warning, otherwise exit.
-            if e.warning:
-                print(e.msg)
-            else:
-                raise
-        return okay
-
-    def check_controller(self):
-        """ Checks the controller thread to see if it's okay.
-        """
-        # First make sure it is still running.
-        okay = self.controller.isAlive()
-
-        # Grab any exceptions it may have generated.
-        try:
-            error = self.cmd_bucket.get(block=False)
-            raise error
-        except Queue.Empty:
-            pass
-        except controller.ControllerError as e:
-            # If the error is a warning, print the warning, otherwise exit.
-            if e.warning:
-                print(e.msg)
-            else:
-                raise
-        return okay
-
-    def check_receiver(self):
-        """ Checks the receiver thread to see if it's okay.
-        """
-        # First make sure it is still running.
-        okay = self.receiver.isAlive()
-
-        # Grab any exceptions it may have generated.
-        try:
-            error = self.nav_bucket.get(block=False)
-            raise error
-        except Queue.Empty:
-            pass
-        except remote.ReceiverError as e:
-            # If the error is a warning, print the warning, otherwise exit.
-            if e.warning:
-                print(e.msg)
-            else:
-                raise
+        okay = True
+        okay = okay and self.remote.is_alive()
+        okay = okay and self.camera.isAlive()
+        okay = okay and self.controller.is_alive()
+        okay = okay and self.receiver.isAlive()
         return okay
 
     def get_visual_features(self):
@@ -325,8 +239,10 @@ class Parrot(object):
         # Get the command history features.
         feats_cmd_history = self.extractor_cmd_history.extract()
         feats_nav_history = self.extractor_nav_history.extract()
+        if feats_nav_history[0] != 0:
+            print('halleluja')
         feats_all = np.vstack((feats_cmd_history, feats_nav_history))
-        return feats_all
+        return np.transpose(feats_all)
 
     def get_features(self):
         visual_features = self.get_visual_features()
@@ -384,9 +300,14 @@ class Parrot(object):
         """ Lands the drone, closes all cv windows and exits.
         """
         self.land()
+
+        # Close threads and processes.
+        self.camera.join()
+        self.remote.join()
+        self.receiver.join()
+        self.controller.join()
         cv2.destroyAllWindows()
 
-    
 
 def _test_parrot():
     """ Tests the parrot module

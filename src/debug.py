@@ -4,19 +4,37 @@
 """
 
 import Queue
+import signal
+from contextlib import contextmanager
 
 
-class DebugError(Exception):
-    """ Base exception for the module.
+class Error(Exception):
+    """ Eception class for the module.
     """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: debug:'
-        default_error = '%s an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s %s.' % (default_header, msg)
+    def __init__(self, module, msg='', warning=False):
+        header = 'Error: %s:' % module
+        default_msg = '%s an exception occured.' % header
+        self.msg = default_msg if msg == '' else '%s %s.' % (header, msg)
         self.warning = warning
 
     def print_error(self):
         print(self.msg)
+
+
+@contextmanager
+def time_limit(seconds):
+    """ Code credit: Josh Lee
+        http://stackoverflow.com/questions/366682/how-to-limit-execution-time-of
+        -a-function-call-in-python
+    """
+    def signal_handler(signum, frame):
+        raise Error('time:' 'function timed out')
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
 
 
 class Debug(object):
@@ -29,7 +47,7 @@ class Debug(object):
 
     def debug(self):
         # Get all the messages in the queue and print them out.
-        while True: 
+        while True:
             msg = None
             try:
                 msg = self.debug_queue.get(block=False)
@@ -41,11 +59,10 @@ class Debug(object):
 
         # Get all messages in the error queue and print them out.
         while True:
-            error = None 
+            error = None
             try:
                 error = self.error_queue.get(block=False)
                 if error is not None:
                     raise error
             except Queue.Empty:
                 break
-

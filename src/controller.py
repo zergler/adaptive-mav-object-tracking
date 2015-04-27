@@ -1,30 +1,19 @@
 #!/usr/bin/env python2
 
+import debug
 import errno
 import socket
 import threading
 
 
-class ControllerError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: controller'
-        default_error = '%s: an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
-
-
 class Controller(threading.Thread):
     """ Handles the sending of commands to the drone.
     """
-    def __init__(self, queue, bucket):
+    def __init__(self, debug_queue, error_queue, queue):
         threading.Thread.__init__(self)
+        self.debug_queue = debug_queue
+        self.error_queue = error_queue
         self.queue = queue
-        self.bucket = bucket
 
     def run(self):
         try:
@@ -37,16 +26,23 @@ class Controller(threading.Thread):
 
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
-                self.bucket.put(ControllerError('unable to connect to command server'))
+                self.error_queue.put(debug.Error('controller', 'unable to connect to command server'))
             if e[0] == errno.EPIPE:
-                self.bucket.put(ControllerError('bad pipe to command server'))
+                self.error_queue.put(ControllerError('controller', 'bad pipe to command server'))
 
 
 def _test_controller():
     pdb.set_trace()
 
+    # Set up debug.
+    verbosity = 1
+    error_queue = Queue.Queue()
+    debug_queue = Queue.Queue()
+    debugger = debug.Debug(verbosity, debug_queue, error_queue)
+
+    # Set up controller
     cmd_queue = Queue.Queue()
-    controller = Controller(cmd_queue)
+    controller = Controller(debug_queue, error_queue, cmd_queue)
     controller.daemon = True
     controller.start()
 
@@ -70,7 +66,6 @@ def _test_controller():
     cmd['L'] = True
     cmd_json = json.dumps(cmd)
     cmd_queue.put(cmd_json)
-
 
 if __name__ == '__main__':
     import pdb
