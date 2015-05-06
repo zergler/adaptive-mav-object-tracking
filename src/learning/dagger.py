@@ -4,19 +4,7 @@
 """
 
 import numpy as np
-
-
-class DaggerError(Exception):
-    """ Base exception for the module.
-    """
-    def __init__(self, msg='', warning=False):
-        default_header = 'Error: dagger'
-        default_error = '%s: an exception occured.' % default_header
-        self.msg = default_error if msg == '' else '%s: %s.' % (default_header, msg)
-        self.warning = warning
-
-    def print_error(self):
-        print(self.msg)
+import sklearn
 
 
 class DAgger(object):
@@ -37,6 +25,13 @@ class DAgger(object):
         self.D = np.array([])
         self.C = np.array([])
 
+        self.learners = []
+
+        # The level of alpha to use for learning ridge regression. Affects the
+        # size of the weights and finds a point on the pareto optimal tradeoff
+        # curve.
+        self.alpha = 0.5
+
         self.i = 0  # current iteration
         self.j = 0  # current trajectory
 
@@ -48,8 +43,8 @@ class DAgger(object):
         # Get the dataset corresponding to the current itteration and
         # trajectory.
         for self.j in range(0, self.M):
-            data_filename = data_directory + 'data_%s_%s.txt' % (self.i, j)
-            cmds_filename = data_directory + 'cmds_%s_%s.txt' % (self.i, j)
+            data_filename = data_directory + 'data_%s_%s.data' % (self.i, j)
+            cmds_filename = data_directory + 'cmds_%s_%s.cmds' % (self.i, j)
 
             with open(data_filename, 'r') as f:
                 data = f.read()
@@ -62,9 +57,33 @@ class DAgger(object):
             self.D = np.vcat((self.D, data))
             self.C = np.vcat((self.C, cmds))
 
+    def get_current_itteration(self):
+        return self.i
+
+    def get_current_trajectory(self):
+        return self.j
+
     def train(self):
-        """ Ridge regression code goes here.
+        """ Trains the ridge regressor on the aggregate of the data.
         """
         self.i += 1
-        policy = None
-        return policy
+        learner = sklearn.linear_model.Ridge(alpha=self.alpha)
+        learner.fit(self.D, self.C) 
+        self.learners.append(learner)
+
+    def test(self, x, itteration):
+        """ Try to fit the new state to a left/right control input.
+        """ 
+        return np.dot(x, self.learners[itteration])
+
+
+def _test_dagger():
+    itterations = 2
+    trajectories = 1
+    data = np.array([[0, 0], [0, 0], [1, 1]])
+    cmds = np.array([0, 0.1, 1])
+    d = Dagger(itterations, trajectories, 'tikhonov')
+    d.aggregate()
+
+if __name__ == '__main__':
+    _test_dagger()

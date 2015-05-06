@@ -27,7 +27,7 @@ class FlyArgs(object):
         iterations_help = 'The number of iterations of learning to do.'
         trajectories_help = 'The number of trajectories to include per iteration of learning.'
         frame_rate_help = 'The number of times per second to query the camera for images. Default and minimum is 1 frame/s.'
-        remote_rate_help = 'The number of times per second to query the remote for commands. Default and minimum is 10 query/s.'
+        remote_rate_help = 'The number of times per second to query the remote for commands. Default and minimum is 30 query/s.'
         nav_rate_help = 'The number of times per second to query the receiver for navigation data. Default and minimum is 1 query/s.'
 
         help_help = 'Show this help message and exit.'
@@ -51,7 +51,7 @@ class FlyArgs(object):
         optional_args.add_argument('-s', '--save', action='store_true', default=True, help=save_help)
 
         optional_args.add_argument('-f', '--frame-rate', default=1, type=int, help=frame_rate_help)
-        optional_args.add_argument('-r', '--remote-rate', default=10, type=int, help=remote_rate_help)
+        optional_args.add_argument('-r', '--remote-rate', default=50, type=int, help=remote_rate_help)
         optional_args.add_argument('-n', '--nav-rate', default=1, type=int, help=nav_rate_help)
 
     def parse(self):

@@ -30,7 +30,7 @@ class Receiver(threading.Thread):
 
             # Only send queries every onece in a while.
             while True:
-                time.sleep(float(1/self.qps))
+                time.sleep(1.0/self.qps)
                 self.recv_navdata()
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:

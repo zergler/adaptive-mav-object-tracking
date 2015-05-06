@@ -72,7 +72,7 @@ def _test_camera():
 
     # Conduct tests...
     _test_get_image()
-    # _test_get_windows(show_window=True)
+    #_test_get_windows(show_window=False)
 
 
 def _test_get_image():
@@ -90,6 +90,7 @@ def _test_get_image():
     camera.start()
 
     try:
+        i = 0
         while True:
             debugger.debug()
             try:
@@ -98,6 +99,9 @@ def _test_get_image():
                 key = cv2.waitKey(1) & 0xff
                 if key == ord('q'):
                     break
+                elif key == ord('s'):
+                    cv2.imwrite('image_%s.png' % str(i), image)
+                    i += 1
             except:
                 pass
         debugger.debug()
@@ -109,13 +113,13 @@ def _test_get_image():
 
 def _test_get_windows(show_window=False):
     # Make sure the resulting windows look right.
-    test_image_filename = '../../samples/test_forest.jpg'
+    test_image_filename = './../samples/test_forest.jpg'
     test_image = cv2.imread(test_image_filename)
     clone = test_image.copy()
 
-    x = 15
-    y = 7
-    overlap = 0.5
+    x = 10
+    y = 5
+    overlap = 0.25
     pdb.set_trace()
     windows = Camera.get_windows(test_image, (x, y), overlap)
     for r in range(0, y):

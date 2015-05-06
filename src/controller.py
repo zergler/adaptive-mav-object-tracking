@@ -28,7 +28,7 @@ class Controller(threading.Thread):
             if e[0] == errno.ECONNREFUSED:
                 self.error_queue.put(debug.Error('controller', 'unable to connect to command server'))
             if e[0] == errno.EPIPE:
-                self.error_queue.put(ControllerError('controller', 'bad pipe to command server'))
+                self.error_queue.put(debug.Error('controller', 'bad pipe to command server'))
 
 
 def _test_controller():

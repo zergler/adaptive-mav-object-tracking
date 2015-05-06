@@ -45,6 +45,7 @@ class Remote(threading.Thread):
             'S': False
         }
         self.key_flag = False
+        self.game_flag = False
 
         # The keys that should issue a stop command when released.
         self.stop_list = [pygame.K_d, pygame.K_a, pygame.K_s, pygame.K_w, pygame.K_q, pygame.K_e, pygame.K_r, pygame.K_f]
@@ -71,7 +72,8 @@ class Remote(threading.Thread):
                     # is connected.
                     self.check_gamepad_okay()
                     if self.gamepad_okay and not self.key_flag:
-                        inputs_remote = self.get_gamepad()
+                        #inputs_remote = self.get_gamepad()
+                        pass
                     if inputs_remote is not None:
                         self.queue.put(inputs_remote)
                     time.sleep(1.0/self.remote_rate)
@@ -85,10 +87,11 @@ class Remote(threading.Thread):
         """
         # Check that the gamepad is still running.
         if pygame.joystick.get_count():
-            # Once it's reconnected, reinitialize it.
-            self.gamepad = pygame.joystick.Joystick(0)
-            self.gamepad.init()
-            self.gamepad_okay = self.gamepad.get_init()
+            if not self.gamepad_okay:
+                # Once it's reconnected, reinitialize it.
+                self.gamepad = pygame.joystick.Joystick(0)
+                self.gamepad.init()
+                self.gamepad_okay = self.gamepad.get_init()
         else:
             self.gamepad_okay = False
 
@@ -112,6 +115,10 @@ class Remote(threading.Thread):
         if abs(axe[0, 1]) < 0.0001:
             axe[0, 1] = 0.0
 
+        axe[0, 3] = -axe[0, 3]
+        if abs(axe[0, 3]) < 0.0001:
+            axe[0, 1] = 0.0
+
         # Based on the input, construct the command to be sent to the drone.
         cmd = {
             'X': axe[0, 0],
@@ -125,7 +132,12 @@ class Remote(threading.Thread):
         }
         thresh = 0.001
         if (abs(cmd['X']) < thresh) and (abs(cmd['Y']) < thresh) and (abs(cmd['Z']) < thresh) and (abs(cmd['R']) < thresh):
-            cmd['S'] = 1
+            # Only send the stop command once.
+            if self.game_flag:
+                self.game_flag = False
+                cmd['S'] = 1
+        else:
+            self.game_flag = True
         return cmd
 
     def get_keyboard(self):

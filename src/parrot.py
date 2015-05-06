@@ -82,7 +82,7 @@ class Parrot(object):
         self.t = 0
 
         # Feature extraction parameters.
-        self.window_size = (15, 7)
+        self.window_size = (3, 2)
         self.overlap = 0.5
         self.cmd_history_feats = 7    # the approximate number of cmd history features
         self.cmd_history_length = 10  # keep a running list of the last 10 cmds
@@ -109,9 +109,6 @@ class Parrot(object):
         self.remote.daemon = True
         self.remote.start()
 
-        # Grab the initial remote data so we know it is initialized.
-        self.get_cmd()
-
     def init_camera(self):
         """ Initializes the camera thread.
         """
@@ -120,9 +117,6 @@ class Parrot(object):
         self.camera = camera.Camera(self.debug_queue, self.error_queue, camera_address, self.image_queue)
         self.camera.daemon = True
         self.camera.start()
-
-        # Grab the initial image so we know the camera is initialized.
-        self.get_image(block=True)
 
     def init_controller(self):
         """ Initializes the controller thread.
@@ -140,13 +134,11 @@ class Parrot(object):
         self.receiver.daemon = True
         self.receiver.start()
 
-        # Grab the initial nav data so we know the receiver is initialized.
-        self.get_navdata(block=True)
-
     def init_tracking(self, bound_box):
         """ Initializes tracking. Make sure the camera is initialized before
             calling this function.
         """
+        self.get_image(block=True)
         if bound_box is None:
             raise debug.Error('parrot', 'invalid bounding box specified.')
         elif len(bound_box) != 2:
@@ -159,6 +151,8 @@ class Parrot(object):
         """ Initializes feature extraction. Make sure the camera and receiver
             are initialized before calling this function.
         """
+        self.get_image(block=True)
+
         # Grab an example window from the initial image to feed the optical flow
         # feature extractor (use a non border window).
         windows = camera.Camera.get_windows(self.image, self.window_size, self.overlap)
@@ -239,8 +233,6 @@ class Parrot(object):
         # Get the command history features.
         feats_cmd_history = self.extractor_cmd_history.extract()
         feats_nav_history = self.extractor_nav_history.extract()
-        if feats_nav_history[0] != 0:
-            print('halleluja')
         feats_all = np.vstack((feats_cmd_history, feats_nav_history))
         return np.transpose(feats_all)
 
@@ -257,45 +249,48 @@ class Parrot(object):
         """
         try:
             self.navdata = self.nav_queue.get(block=block)
+            self.extractor_nav_history.update(self.navdata)
         except Queue.Empty:
             pass
         return self.navdata
-
+        
     def get_image(self, block=False):
         """ Receives the most recent image from the drone. Calling module should
             call this function in a loop to get images continuously. Make sure
             the camera is initialized.
         """
+        self.image = None
         try:
             self.image = self.image_queue.get(block=block)
         except Queue.Empty:
             pass
+        return self.image
         
     def get_cmd(self, block=False):
         """ Receives the most recent command from the remote. Calling module
             should call this function in a loop to get the the commands
             continuously. Make sure the remote is initialized.
         """
-        self.cmd = self.default_cmd.copy()
+        self.cmd = None
         try:
             self.cmd = self.remote_queue.get(block=block)
         except Queue.Empty:
             pass
+        self.dagger.test(self.cmd)
         return self.cmd
 
     def send_cmd(self, cmd):
         """ Before exiting, safely lands the drone and closes all processes.
             Make sure the controller is initialized.
         """
-        cmd_json = json.dumps(cmd)
-        try:
-            self.cmd_queue.put(cmd_json, block=False)
-        except Queue.Full:
-            pass
-
-        # Add the send command to the command history feature extractor.
-        # self.extractor_cmd_history.update(cmd)
-
+        if cmd is not None:
+            cmd_json = json.dumps(cmd)
+            try:
+                self.cmd_queue.put(cmd_json, block=False)
+                self.extractor_cmd_history.update(cmd)
+            except Queue.Full:
+                pass
+        
     def exit(self):
         """ Lands the drone, closes all cv windows and exits.
         """

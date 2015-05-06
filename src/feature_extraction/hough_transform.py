@@ -42,7 +42,7 @@ class HoughTransform(object):
         """ Draws the lines found by Hough transform extractor on the image.
         """
         for x1, y1, x2, y2 in lines[0]:
-            cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.line(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
         return img
 
     @staticmethod
@@ -66,14 +66,14 @@ def cart2pol(x, y):
 
 def _test_hough_transform():
     pdb.set_trace()
-    test_filename = './../../samples/test_hough.jpg'
+    test_filename = './../samples/test_hough.jpg'
 
     image = cv2.imread(test_filename, cv2.CV_LOAD_IMAGE_COLOR)
     hough_transform = HoughTransform()
     lines = hough_transform.extract(image)
     image = HoughTransform.get_image(image, lines)
     feats = HoughTransform.get_features(lines)
-    cv2.imshow('Hough Lines on Test Forest Image', img)
+    cv2.imshow('Hough Lines on Test Forest Image', image)
     cv2.waitKey()
 
 

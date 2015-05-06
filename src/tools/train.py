@@ -24,8 +24,8 @@ def annotate_input(image, cmd, invert=False):
     y_1[1] += int(math.floor(vert*shape[0]/2))
     y_2[1] += int(math.floor(vert*shape[0]/2))
 
-    cv2.line(image, tuple(x_1), tuple(x_2), (255, 0, 0), 2)
-    cv2.line(image, tuple(y_1), tuple(y_2), (0, 0, 255), 2)
+    cv2.line(image, tuple(x_1), tuple(x_2), (0, 0, 255), 2)
+    #cv2.line(image, tuple(y_1), tuple(y_2), (0, 0, 255), 2)
     return image
 
 
@@ -34,8 +34,8 @@ def _test_annotate_input():
     test_filename = '../../samples/test_forest.jpg'
     test_image = cv2.imread(test_filename)
     test_cmd = {
-        'X': -0.9,
-        'Y': -0.9,
+        'X': -0.5,
+        'Y': 0.0,
         'Z': 0.0,
         'R': 0.0,
         'C': 0,
@@ -45,7 +45,7 @@ def _test_annotate_input():
     }
     annotated_image = annotate_input(test_image, test_cmd)
     cv2.imshow('Annotated Image', annotated_image)
-    cv2.waitKey(0)
+    pdb.set_trace()
 
 if __name__ == '__main__':
     import pdb

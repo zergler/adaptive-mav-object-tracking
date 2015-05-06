@@ -39,6 +39,7 @@ class FlyTool(object):
         self.frame_rate = frame_rate
         self.remote_rate = remote_rate
         self.nav_rate = nav_rate
+        self.t = 0
 
         self.debug_queue = Queue.Queue()
         self.error_queue = Queue.Queue()
@@ -86,6 +87,7 @@ class FlyTool(object):
             self.debugger.debug()
             self.debug_queue.put({'MSG': ':: All threads initialized successfully.', 'PRIORITY': 1})
             self.debug_queue.put({'MSG': ':: Initializing feature extraction.', 'PRIORITY': 1})
+            pdb.set_trace()
             self.drone.init_feature_extract()
             if self.gui:
                 self.debug_queue.put({'MSG': ':: Initializing GUI.', 'PRIORITY': 1})
@@ -102,18 +104,27 @@ class FlyTool(object):
             self.update_video()
 
     def save_features(self, features):
-        with open('feat.dat', 'a') as out:
-            np.savetxt(out, features)
-            out.write('\n')
+        data_directory = './data/'
+        data_filename = data_directory + 'data_%s_%s.data' % (self.dagger.i, self.dagger.j)
+        with open(data_filename, 'a') as out:
+            line = np.hstack(([[self.t]], features))
+            np.savetxt(out, line)
 
-    def save_image(self, image, cmd):
+    def save_image(self, image):
         directory = 'data/'
         if self.save:
             self.debug_queue.put({'MSG': 'Saving new image.', 'PRIORITY': 2})
             out = directory + 'image_%s_%s_%s.jpg' % (self.drone.dagger.i, self.drone.dagger.j, self.t)
             # image_bgr = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(out, image_bgr)
+            cv2.imwrite(out, self.frame)
             self.t += 1
+
+    def save_cmd(self, cmd):
+        data_directory = './data/'
+        cmds_filename = data_directory + 'data_%s_%s.data' % (self.dagger.i, self.dagger.j)
+        with open(data_filename, 'a') as out:
+            line = np.hstack(([[self.t]], features))
+            np.savetxt(out, line)
 
     def get_object_to_track(self):
         """ Gets the object to track from the user.
@@ -165,8 +176,9 @@ class FlyTool(object):
         self.feats = self.drone.get_features()
 
         #self.debug_queue.put({'MSG': 'Saving image of drone.', 'Priority': 1})
-        #self.save_image(self.frame, self.cmd)
-        #self.save_features(self.feats)
+        self.save_image(self.frame, self.cmd)
+        self.save_features(self.feats)
+        self.save_cmd(self.cmd)
 
 
 def main():
