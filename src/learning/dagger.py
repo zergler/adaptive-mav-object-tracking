@@ -3,27 +3,17 @@
 """ Implements the DAgger algorithm.
 """
 
+import json
 import numpy as np
-import sklearn
+from sklearn.linear_model import Ridge
 
 
 class DAgger(object):
     """ DAgger algorithm.
-
-        Arguments:
-            regressor       The regression algorithm to use. Default uses least
-                            squares linear regularized regression
-                            (ridge/Tikhonov).
-            iterations      The number of iterations of learning.
-            beta            The executed policy is an affine combination of the
-                            expert's policy and the learned policy.
     """
-    def __init__(self, iterations, trajectories, regressor):
-        self.regressor = regressor
-        self.N = iterations
-        self.M = trajectories
-        self.D = np.array([])
-        self.C = np.array([])
+    def __init__(self, iteration, learner):
+        self.learner = learner
+        self.iteration = iteration
 
         self.learners = []
 
@@ -32,30 +22,81 @@ class DAgger(object):
         # curve.
         self.alpha = 0.5
 
-        self.i = 0  # current iteration
-        self.j = 0  # current trajectory
+        # Load the previous aggregate.
+        self.aggregate_features_filename = './data/aggregate_features.data'
+        self.aggregate_cmds_filename = './data/aggregate_cmds.data'
+
+        # Load the current data.
+        self.current_directory = './data/%s/' % self.iteration
+
+        # Load the features into numpy.
+        try:
+            self.features = self.load_features(self.aggregate_features_filename)
+        except IOError:
+            self.features = ''
+
+        # Load the cmds into numpy.
+        try:
+            self.cmds = self.load_cmds(self.aggregate_cmds_filename)
+        except IOError:
+            self.cmds = ''
 
     def aggregate(self):
         """ Aggregate the data.
         """
-        data_directory = '../data/'
+        # Get the dataset corresponding to the current itteration.
+        cur_trajectory = 1
+        while True:
+            features_filename = self.current_directory + '%s/features.data' % cur_trajectory
+            cmds_filename = self.current_directory + '%s/expert_cmds.data' % cur_trajectory
+            try:
+                cur_features = self.load_features(features_filename)
+                cur_cmds = self.load_cmds(cmds_filename)
+                self.features += cur_features
+                self.cmds += cur_cmds
+                cur_trajectory += 1
+            except:
+                break
 
-        # Get the dataset corresponding to the current itteration and
-        # trajectory.
-        for self.j in range(0, self.M):
-            data_filename = data_directory + 'data_%s_%s.data' % (self.i, j)
-            cmds_filename = data_directory + 'cmds_%s_%s.cmds' % (self.i, j)
+        # Write the data to the aggregate file.
+        pdb.set_trace()
+        with open(self.aggregate_features_filename, 'w') as f:
+            f.write(self.features) 
+        with open(self.aggregate_cmds_filename, 'w') as f:
+            f.write(self.cmds)
 
-            with open(data_filename, 'r') as f:
-                data = f.read()
+    def load_features(self, filename):
+        with open(filename, 'r') as f:
+            features_str = f.read()
+        return features_str
 
-            with open(cmds_filename, 'r') as f:
-                cmds = f.read()
+    def parse_features(self, features_str):
+        features_np = None
+        features_str = features_str.split('\n')
+        features_str = [i for i in features_str if i != '']
+        for i in range(0, len(features_str)):
+            cur_features_str = features_str[i].split(' ')
+            cur_features_np = np.loadtxt(cur_features_str)
+            features_np = np.vstack((features_np, cur_features_np)) if features_np is not None else cur_features_np
+        return features_np
 
-            data = np.loadtxt(data)
-            cmds = np.loadtxt(cmds)
-            self.D = np.vcat((self.D, data))
-            self.C = np.vcat((self.C, cmds))
+    def load_cmds(self, filename):
+        # Only uses X for now.
+        with open(filename, 'r') as f:
+            cmds_str = f.read()
+        return cmds_str
+
+    def parse_cmds(self, cmds_str):
+        cmds_json = cmds_str.split('\n')
+        cmds_json = [i for i in cmds_json if i != '']
+        cmds = []
+        for i in range(0, len(cmds_json)):
+            cmd_json = cmds_json[i]
+            cmd = json.loads(cmd_json)
+            cmds.append(cmd['X'])
+        cmds = np.array([cmds])
+        cmds = cmds.transpose()
+        return cmds
 
     def get_current_itteration(self):
         return self.i
@@ -66,24 +107,28 @@ class DAgger(object):
     def train(self):
         """ Trains the ridge regressor on the aggregate of the data.
         """
-        self.i += 1
-        learner = sklearn.linear_model.Ridge(alpha=self.alpha)
-        learner.fit(self.D, self.C) 
+        # Load the aggregate data.
+        aggregate_features_str = self.load_features(self.aggregate_features_filename)
+        aggregate_cmds_str = self.load_cmds(self.aggregate_cmds_filename)
+        aggregate_features = self.parse_features(aggregate_features_str)
+        aggregate_cmds = self.parse_cmds(aggregate_cmds_str)
+
+        learner = Ridge(alpha=self.alpha)
+        learner.fit(aggregate_features, aggregate_cmds)
         self.learners.append(learner)
 
     def test(self, x, itteration):
         """ Try to fit the new state to a left/right control input.
         """ 
-        return np.dot(x, self.learners[itteration])
+        x_value = self.learners[i].predict(x)
 
 
 def _test_dagger():
-    itterations = 2
-    trajectories = 1
-    data = np.array([[0, 0], [0, 0], [1, 1]])
-    cmds = np.array([0, 0.1, 1])
-    d = Dagger(itterations, trajectories, 'tikhonov')
-    d.aggregate()
+    pdb.set_trace()
+    iteration = 1
+    d = DAgger(iteration, 'tikhonov')
+    d.train()
 
 if __name__ == '__main__':
+    import pdb
     _test_dagger()

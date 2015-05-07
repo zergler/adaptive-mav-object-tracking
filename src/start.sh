@@ -1,3 +1,4 @@
 #!/bin/bash
 
-./fly.py -a localhost:9000 localhost:9001 -l tikhonov -i 3 -t 2 -g -v -s -f 25
+#./fly.py -v annotate 1 1
+./fly.py -v train localhost:9000 localhost:9001 tikhonov 1 1

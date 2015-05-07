@@ -11,27 +11,24 @@ import threading
 import time
 
 
-class Receiver(threading.Thread):
+class Receiver(object):
     """ Handles the receiving of navigation data from the drone.
     """
-    def __init__(self, debug_queue, error_queue, queue, qps):
-        threading.Thread.__init__(self)
+    def __init__(self, debug_queue, error_queue):
         self.debug_queue = debug_queue
         self.error_queue = error_queue
-        self.queue = queue
-        self.qps = qps  # number of queries per second (*not really*)
         self.bufsize = 8192
 
-    def run(self):
+        query = {
+            'N': True
+        }
+        self.query_json = json.dumps(query)
+
+
         try:
             self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.soc.connect(('localhost', 9001))
-            self.soc.setblocking(0)
-
-            # Only send queries every onece in a while.
-            while True:
-                time.sleep(1.0/self.qps)
-                self.recv_navdata()
+            self.soc.setblocking(1)
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
                 self.error_queue.put(debug.Error('receiver', 'unable to connect to receiver server'))
@@ -43,24 +40,19 @@ class Receiver(threading.Thread):
             query and then receiving the data.
         """
         navdata = None
-        query = {
-            'N': True
-        }
-        query = json.dumps(query)
-        self.soc.send(query)
+        self.soc.send(self.query_json)
         try:
             navdata = self.soc.recv(self.bufsize)
         except socket.error as e:
             if e[0] == errno.ECONNREFUSED:
                 self.error_queue.put(debug.Error('receiver', 'unable to connect to receiver server'))
+        return navdata
 
-        # We only care about the most recent navdata so remove the outdated
-        # data from the queue.
-        if not self.queue.empty():
-            self.queue.get()
-        if navdata is not None:
-            self.queue.put(navdata)
-
+    def get_navdata(self):
+        time.sleep(0.1)
+        navdata_json = self.recv_navdata()
+        navdata = json.loads(navdata_json)
+        return navdata
 
 def _test_receiver():
     pdb.set_trace()
@@ -72,22 +64,13 @@ def _test_receiver():
     debugger = debug.Debug(verbosity, debug_queue, error_queue)
 
     # Set up receiver.
-    qps = 0.5
-    recv_queue = Queue.Queue(maxsize=1)
-    receiver = Receiver(debug_queue, error_queue, recv_queue, qps)
-    receiver.daemon = True
-    receiver.start()
+    receiver = Receiver(debug_queue, error_queue)
 
     try:
         while True:
             debugger.debug()
-            try:
-                navdata = recv_queue.get(block=False)
-                navdata = json.loads(navdata)
-                pprint.pprint(navdata)
-                navdata = None
-            except Queue.Empty:
-                pass
+            navdata = receiver.get_navdata()
+            pprint.pprint(navdata)
     except debug.Error as e:
         e.print_error()
     except KeyboardInterrupt:

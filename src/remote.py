@@ -9,24 +9,20 @@
 """
 
 import debug
-import threading
 import pygame
 import sys
 import time
 import numpy as np
 
 
-class Remote(threading.Thread):
+class Remote(object):
     """ Handles the conversion of gamepad inputs and keyboard intpus to drone
         commands. This thread runs as long as the pygame module is correctly
         initialized.
     """
-    def __init__(self, debug_queue, error_queue, queue, remote_rate):
-        threading.Thread.__init__(self)
+    def __init__(self, debug_queue, error_queue):
         self.debug_queue = debug_queue
         self.error_queue = error_queue
-        self.queue = queue
-        self.remote_rate = remote_rate
 
         # Flags for errors.
         self.pygame_okay = False
@@ -42,8 +38,10 @@ class Remote(threading.Thread):
             'C': 0,
             'T': False,
             'L': False,
-            'S': False
+            'S': False,
+            'A': False
         }
+        self.cur_cmd = None
         self.key_flag = False
         self.game_flag = False
 
@@ -61,22 +59,20 @@ class Remote(threading.Thread):
         self.gamepad = None
         self.check_gamepad_okay()
 
-    def run(self):
+    def get_input(self):
         try:
             if self.pygame_okay:
-                while True:
-                    # Get the keyboard input.
-                    inputs_remote = self.get_keyboard()
+                # Get the keyboard input.
+                inputs_remote = self.get_keyboard()
 
-                    # Replace the keyboard input with gamepad input if a gamepad
-                    # is connected.
-                    self.check_gamepad_okay()
-                    if self.gamepad_okay and not self.key_flag:
-                        #inputs_remote = self.get_gamepad()
-                        pass
-                    if inputs_remote is not None:
-                        self.queue.put(inputs_remote)
-                    time.sleep(1.0/self.remote_rate)
+                # Replace the keyboard input with gamepad input if a gamepad
+                # is connected.
+                self.check_gamepad_okay()
+                if self.gamepad_okay and not self.key_flag:
+                    inputs_remote = self.get_gamepad()
+                if inputs_remote is None:
+                    inputs_remote = self.default_cmd 
+                return inputs_remote
         except:
             exc_error = sys.exc_info()
             remote_error = debug.Error('remote', '%s, %s, %s' % exc_error)
@@ -102,7 +98,7 @@ class Remote(threading.Thread):
         but = np.zeros((1, self.gamepad.get_numbuttons()))
         pygame.event.pump()
 
-        # Read input from the two gamepads.
+        # Read input from the two axes.
         for i in range(0, self.gamepad.get_numaxes()):
             axe[0, i] = self.gamepad.get_axis(i)
 
@@ -117,7 +113,7 @@ class Remote(threading.Thread):
 
         axe[0, 3] = -axe[0, 3]
         if abs(axe[0, 3]) < 0.0001:
-            axe[0, 1] = 0.0
+            axe[0, 3] = 0.0
 
         # Based on the input, construct the command to be sent to the drone.
         cmd = {
@@ -128,7 +124,8 @@ class Remote(threading.Thread):
             'C': but[0, 0],
             'T': but[0, 1],
             'L': but[0, 2],
-            'S': but[0, 3]
+            'S': but[0, 3],
+            'A': but[0, 5]
         }
         thresh = 0.001
         if (abs(cmd['X']) < thresh) and (abs(cmd['Y']) < thresh) and (abs(cmd['Z']) < thresh) and (abs(cmd['R']) < thresh):
@@ -141,7 +138,7 @@ class Remote(threading.Thread):
         return cmd
 
     def get_keyboard(self):
-        cmd = None
+        cmd = self.cur_cmd
         for event in pygame.event.get():
             # If a key has been pressed down, send the command to the drone.
             if event.type == pygame.KEYDOWN:
@@ -173,6 +170,7 @@ class Remote(threading.Thread):
                 self.key_flag = False
                 if event.key in self.stop_list:
                     cmd = self.stop()
+        self.cur_cmd = cmd
         return cmd
 
     def land(self):
@@ -258,22 +256,18 @@ def _test_remote():
     debugger = debug.Debug(verbosity, debug_queue, error_queue)
 
     # Set up remote.
-    remote_rate = 1
-    remote_queue = Queue.Queue(maxsize=1)
-    remote = Remote(debug_queue, error_queue, remote_queue, remote_rate)
-    remote.daemon = True
-    remote.start()
+    remote = Remote(debug_queue, error_queue)
 
     # Grab the initial remote data so we know it is initialized.
     while True:
         try:
-            remote_input = remote_queue.get(block=False)
+            time.sleep(0.1)
+            remote_input = remote.get_input()
             print(remote_input)
         except Queue.Empty:
             pass
         try:
             debugger.debug()
-            time.sleep(0.1)
         except debug.Error as e:
             e.print_error()
         except KeyboardInterrupt:

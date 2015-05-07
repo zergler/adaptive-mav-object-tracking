@@ -38,32 +38,6 @@ class Camera(threading.Thread):
     def get_cap(self):
         return cv2.VideoCapture(self.address)
 
-    @staticmethod
-    def get_windows(image, window_size, percent_overlap):
-        """ Gets the windows of the image.
-
-            Descritizes the image into a bunch of cells with a size given by
-            window_size, a 2-tuple specifying the size of the x and y
-            descritizations. The percentage of each image which overlaps its
-            neighbors is given by percent_overlap.
-        """
-        (y, x, d) = image.shape
-        length = (x/window_size[0], y/window_size[1])
-        overlap = (int(math.floor(length[0]*percent_overlap/4)), int(math.floor(length[1]*percent_overlap/4)))
-
-        # Matrix that will hold the window sizes.
-        windows = [[None for z in range(0, window_size[0])] for z in range(0, window_size[1])]
-        for r in range(0, window_size[1]):
-            for c in range(0, window_size[0]):
-                x_start = length[0]*(c) - overlap[0]
-                x_end   = length[0]*(c + 1) + overlap[0]
-                y_start = length[1]*(r) - overlap[1]
-                y_end   = length[1]*(r + 1) + overlap[1]
-                windows[r][c] = (x_start, x_end, y_start, y_end)
-
-        windows = [[tuple(j if j > 0 else 0 for j in i) for i in k] for k in windows]  # remove bad (negative) values
-        return windows
-
 
 def _test_camera():
     """ Tests the camera module.
@@ -93,17 +67,14 @@ def _test_get_image():
         i = 0
         while True:
             debugger.debug()
-            try:
-                image = image_queue.get(block=False)
-                cv2.imshow('image', image)
-                key = cv2.waitKey(1) & 0xff
-                if key == ord('q'):
-                    break
-                elif key == ord('s'):
-                    cv2.imwrite('image_%s.png' % str(i), image)
-                    i += 1
-            except:
-                pass
+            image = image_queue.get(block=True)
+            cv2.imshow('image', image)
+            key = cv2.waitKey(1) & 0xff
+            if key == ord('q'):
+                break
+            elif key == ord('s'):
+                cv2.imwrite('image_%s.png' % str(i), image)
+                i += 1
         debugger.debug()
     except debug.Error as e:
         e.print_error()

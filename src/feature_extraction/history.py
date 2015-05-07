@@ -114,7 +114,7 @@ class NavHistory(object):
     def __init__(self, num_feats, max_length):
         self.num_feats = num_feats
         self.max_length = max_length
-        self.history = np.zeros((1, max_length))
+        self.history = np.zeros((4, max_length))
 
         # Create the spacing for the exponentially decreasing time periods.
         self.spacing = get_spacing(self.max_length, self.num_feats, func='log')
@@ -125,16 +125,16 @@ class NavHistory(object):
         """
         # Parse the navigation data getting only the useful info and form it
         # into an array.
-        useful_nav_data = np.array([])
+        useful_nav_data = []
         if not form:
             useful_nav_data.append(navdata['demo']['altitude'])
             useful_nav_data.append(navdata['demo']['rotation']['pitch'])
             useful_nav_data.append(navdata['demo']['rotation']['roll'])
             useful_nav_data.append(navdata['demo']['rotation']['yaw'])
-
-        useful_nav_data = np.transpose(useful_nav_data)
+        
+        useful_nav_data = np.array(useful_nav_data)
         self.history = np.roll(self.history, 1)
-        self.history[0, 0] = navdata
+        self.history[:, 0] = useful_nav_data
 
     def extract(self, low_pass_filter='average'):
         """ Extracts the navigation history features.
