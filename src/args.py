@@ -114,7 +114,7 @@ class FlyArgs(object):
             self._parse_learning()
             self._parse_iteration()
             self._parse_trajectory()
-        elif self.arsg.command == 'annotate':
+        elif self.args.command == 'annotate':
             self._parse_iteration()
             self._parse_trajectory()
 

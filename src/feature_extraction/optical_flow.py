@@ -145,6 +145,25 @@ def _test_optical_flow_get_image(stream, opt_flow):
     stream.release()
     cv2.destroyAllWindows()
 
+def _test_optical_flow_get_image_from_file():
+    directory = './data/1/1/'
+    init_image = cv2.imread(directory + '1.jpg')
+    opt_flow = OpticalFlow(init_image)
+    time_step = 2
+    import time
+    while True:
+        filename = directory + '%s.jpg' % time_step
+        image = cv2.imread(filename)
+        flow = opt_flow.extract(image)
+        flow_image = OpticalFlow.get_image(flow)
+        cv2.imshow("frame", flow_image)
+        key = cv2.waitKey(1) & 0xff
+        if key == ord('q'):
+            break
+        cv2.imwrite('flow_%s.png' % time_step, flow_image)
+        time_step += 1
+
+
 
 def _test_optical_flow_get_features(stream, opt_flow):
     assert stream.isOpened() is True
@@ -157,4 +176,5 @@ def _test_optical_flow_get_features(stream, opt_flow):
 
 if __name__ == '__main__':
     import pdb
-    _test_optical_flow()
+    #_test_optical_flow()
+    _test_optical_flow_get_image_from_file()

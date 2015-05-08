@@ -14,8 +14,6 @@ class DAgger(object):
     def __init__(self, learner):
         self.learner = learner
 
-        self.learners = []
-
         # The level of alpha to use for learning ridge regression. Affects the
         # size of the weights and finds a point on the pareto optimal tradeoff
         # curve.
@@ -112,20 +110,26 @@ class DAgger(object):
         aggregate_features = self.parse_features(aggregate_features_str)
         aggregate_cmds = self.parse_cmds(aggregate_cmds_str)
 
-        learner = Ridge(alpha=self.alpha)
-        learner.fit(aggregate_features, aggregate_cmds)
-        self.learners.append(learner)
+        self.ridge = Ridge(alpha=self.alpha)
+        self.ridge.fit(aggregate_features, aggregate_cmds)
 
     def test(self, x, iteration):
         """ Try to fit the new state to a left/right control input.
         """ 
-        x_value = self.learners[iteration].predict(x)
+        x_value = self.ridge.predict(x)
+        return x_value
 
 
 def _test_dagger():
     pdb.set_trace()
     iteration = 1
-    d = DAgger(iteration, 'tikhonov')
+    d = DAgger('tikhonov')
+    d.train()
+    features = d.load_features('./data/1/1/features.data')
+    features = d.parse_features(features) 
+    pdb.set_trace()
+    value = d.test(features, 1)
+    
     d.train()
 
 if __name__ == '__main__':

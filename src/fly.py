@@ -37,7 +37,6 @@ class FlyTool(object):
         information and saving saves.
     """
     def __init__(self, args):
-        pdb.set_trace()
         self.gui = args.gui
         self.verbosity = args.verbosity
 
@@ -45,7 +44,6 @@ class FlyTool(object):
         self.error_queue = Queue.Queue()
         self.debugger = debug.Debug(self.verbosity, self.debug_queue, self.error_queue)
 
-        pdb.set_trace()
         if args.command == 'train':
             self.train(args)
         elif args.command == 'test':
@@ -73,8 +71,10 @@ class FlyTool(object):
         self.iteration = args.iteration
         self.trajectory = args.trajectory
 
-        # Create the dagger object.
+        # Create the dagger object and train it.
+        pdb.set_trace()
         self.dag = dagger.DAgger(self.learning)
+        self.dag.train()
 
         # Feature extraction parameters.
         window_size = (10, 5)
@@ -84,7 +84,7 @@ class FlyTool(object):
         nav_history_feats = 7    # the approximate number of nav history features
         nav_history_length = 10  # keep a running list of the last 10 nav data
 
-        self.debug_queue.put({'MSG': 'Parrot AR 2 Flying Tool :: Training Mode', 'PRIORITY': 1})
+        self.debug_queue.put({'MSG': 'Parrot AR 2 Flying Tool :: Execution Mode', 'PRIORITY': 1})
         self.debug_queue.put({'MSG': ':: GUI flag set to %s.' % str(self.gui), 'PRIORITY': 1})
         self.debug_queue.put({'MSG': ':: Verbosity set to %d.' % self.verbosity, 'PRIORITY': 1})
         self.debug_queue.put({'MSG': ':: Accessing controller server at: %s.' % self.address[0], 'PRIORITY': 1})
@@ -117,8 +117,9 @@ class FlyTool(object):
         # Start training.
         if self.iteration == 1:
             self.debug_queue.put({'MSG': 'Since this is the first iteration, all input will come from the expert.', 'PRIORITY': 1})
-            self.debug_queue.put({'MSG': 'Waiting to take off...', 'PRIORITY': 1})
-            self.debugger.debug()
+
+        self.debug_queue.put({'MSG': 'Waiting to take off...', 'PRIORITY': 1})
+        self.debugger.debug()
 
         # Start when the drone takes off.
         while True:
@@ -143,11 +144,14 @@ class FlyTool(object):
             if emergency_cmd is not None:
                 if emergency_cmd['L']:
                     self.drone.send_cmd(self.drone.remote.land())
+                    break
 
             image_filename = directory + '%s.jpg' % self.time_step
 
             expert_cmd = self.drone.get_cmd()
+            expert_cmd['X'] = expert_cmd['X']*0.15
             if self.iteration == 1:
+                expert_cmd['Y'] = 0.02
                 if expert_cmd is not None and not feature_flag:
                     image = self.drone.get_image()
                     navdata = self.drone.get_navdata()
@@ -170,21 +174,28 @@ class FlyTool(object):
                     image = self.drone.get_image()
                     navdata = self.drone.get_navdata()
                     self.feature_extractor.extract(image)
-                    self.feature_extractor.update(cmd, navdata)
                     feature_flag = True
                 try:
                     features = self.feature_queue.get(block=False)
 
                     # Get the command associated with this state.
+                    blah = np.array([0])
+                    blah.shape = (1, 1)
+                    features = np.hstack((blah, features))
                     x = self.dag.test(features, self.iteration)
                     cmd = self.drone.default_cmd
-                    cmd['X'] = cmd
+                    cmd['Y'] = 0.02
+                    cmd['X'] = x[0,0]*0.15
+                    print(x)
+                    self.feature_extractor.update(cmd, navdata)
 
                     # Save the features and command.
                     self.save_image(image, image_filename)
                     self.save_features(features, features_filename)
-                    self.save_cmd(expert_cmd, cmd_filename)
+                    self.save_cmd(cmd, cmd_filename)
                     self.time_step += 1
+
+                    self.drone.send_cmd(cmd)
                     feature_flag = False
                 except Queue.Empty:
                     pass
