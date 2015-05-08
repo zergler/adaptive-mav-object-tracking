@@ -26,6 +26,7 @@ import remote
 import tracking
 from tools import annotate
 from feature_extraction import feature_extractor
+from learning import dagger
 
 
 class FlyTool(object):
@@ -44,19 +45,26 @@ class FlyTool(object):
         self.error_queue = Queue.Queue()
         self.debugger = debug.Debug(self.verbosity, self.debug_queue, self.error_queue)
 
+        pdb.set_trace()
         if args.command == 'train':
             self.train(args)
         elif args.command == 'test':
             self.test(args)
-        elif args.command == 'execute':
+        elif args.command == 'exec':
             self.execute(args)
         elif args.command == 'annotate':
             self.annotate(args)
 
     def train(self, args):
-        """ Starts training.
+        """ Starts training. Make sure you have annotated the images first.
         """
-        pass
+        self.iterations = args.iterations
+        self.learning = args.learning
+
+        # Create the dagger object.
+        self.dag = dagger.DAgger(self.learning)
+        self.dag.aggregate(self.iterations)
+
 
     def execute(self, args):
         # Get the arguments for this subcommand.
@@ -66,7 +74,7 @@ class FlyTool(object):
         self.trajectory = args.trajectory
 
         # Create the dagger object.
-        self.dag = dagger.DAgger(self.iteration, self.learning)
+        self.dag = dagger.DAgger(self.learning)
 
         # Feature extraction parameters.
         window_size = (10, 5)
@@ -140,7 +148,7 @@ class FlyTool(object):
 
             expert_cmd = self.drone.get_cmd()
             if self.iteration == 1:
-                if exper_cmd is not None and not feature_flag:
+                if expert_cmd is not None and not feature_flag:
                     image = self.drone.get_image()
                     navdata = self.drone.get_navdata()
                     self.feature_extractor.extract(image)

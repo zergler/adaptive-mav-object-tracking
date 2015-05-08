@@ -29,7 +29,7 @@ class FeatureExtractor(object):
         self.init_feature_extract()
 
     def extract(self, image):
-        t = threading.Thread(target=self.get_features, args=(image, cmd, navdata))
+        t = threading.Thread(target=self.get_features, args=(image,))
         t.start()
 
     def update(self, cmd, navdata):
@@ -99,9 +99,9 @@ class FeatureExtractor(object):
         feats_all = np.vstack((feats_cmd_history, feats_nav_history))
         return np.transpose(feats_all)
 
-    def get_features(self, image, cmd, navdata):
+    def get_features(self, image):
         visual_features = self.get_visual_features(image)
-        nav_features = self.get_nav_features(cmd, navdata)
+        nav_features = self.get_nav_features()
         feats = np.hstack((visual_features, nav_features))
         self.feature_queue.put(feats)
 

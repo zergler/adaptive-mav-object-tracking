@@ -40,6 +40,8 @@ class FlyArgs(object):
         learning_help = "The type of learning algorithm to use. Use 'tkhonov' "\
                         "for Tikhonov regression or 'ordinary_least_squares' "\
                         "for ordinary least squares linear regression."
+        iterations_help = 'The total number of iterations to include in '\
+                          'learning.'
         iteration_help = 'The current iteration of learning.'
         trajectory_help = 'The current trajectory that will be learned.'
 
@@ -68,10 +70,8 @@ class FlyArgs(object):
         train_opt_args.add_argument('-h', '--help', action='help', help=help_help)
         
         train_pos_args = train_parser.add_argument_group('Training arguments', '')
-        train_pos_args.add_argument('address', type=str, nargs=2, help=address_help)
+        train_pos_args.add_argument('iterations', type=int, help=iterations_help)
         train_pos_args.add_argument('learning', type=str, help=learning_help)
-        train_pos_args.add_argument('iteration', type=int, help=iteration_help)
-        train_pos_args.add_argument('trajectory', type=int, help=trajectory_help)
 
         test_parser = subparsers.add_parser('test', help=test_help, add_help=False)
         test_opt_args = test_parser.add_argument_group('Optional arguments', '')
@@ -106,18 +106,17 @@ class FlyArgs(object):
         self.args = self.arg_parser.parse_args()
 
         # Parse the address
-        if self.args.command == 'train' or self.args.command == 'test':
+        if self.args.command == 'train':
+            self._parse_learning()
+        elif self.args.command == 'test' or self.args.command == 'exec':
             self._parse_address(0)
             self._parse_address(1)
-
-            # Parse the learning argument.
             self._parse_learning()
-
-        # Parse the iteration argument.
-        self._parse_iteration()
-
-        # Parse the trajectories argument.
-        self._parse_trajectory()
+            self._parse_iteration()
+            self._parse_trajectory()
+        elif self.arsg.command == 'annotate':
+            self._parse_iteration()
+            self._parse_trajectory()
 
     def _parse_address(self, i):
         assert i == 0 or i == 1

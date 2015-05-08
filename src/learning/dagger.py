@@ -11,9 +11,8 @@ from sklearn.linear_model import Ridge
 class DAgger(object):
     """ DAgger algorithm.
     """
-    def __init__(self, iteration, learner):
+    def __init__(self, learner):
         self.learner = learner
-        self.iteration = iteration
 
         self.learners = []
 
@@ -25,9 +24,6 @@ class DAgger(object):
         # Load the previous aggregate.
         self.aggregate_features_filename = './data/aggregate_features.data'
         self.aggregate_cmds_filename = './data/aggregate_cmds.data'
-
-        # Load the current data.
-        self.current_directory = './data/%s/' % self.iteration
 
         # Load the features into numpy.
         try:
@@ -41,25 +37,28 @@ class DAgger(object):
         except IOError:
             self.cmds = ''
 
-    def aggregate(self):
+    def aggregate(self, iterations):
         """ Aggregate the data.
         """
         # Get the dataset corresponding to the current itteration.
-        cur_trajectory = 1
-        while True:
-            features_filename = self.current_directory + '%s/features.data' % cur_trajectory
-            cmds_filename = self.current_directory + '%s/expert_cmds.data' % cur_trajectory
-            try:
-                cur_features = self.load_features(features_filename)
-                cur_cmds = self.load_cmds(cmds_filename)
-                self.features += cur_features
-                self.cmds += cur_cmds
-                cur_trajectory += 1
-            except:
-                break
+        for i in range(1, iterations+1):
+            # Load the current data.
+            current_directory = './data/%s/' % i
+
+            cur_trajectory = 1
+            while True:
+                features_filename = current_directory + '%s/features.data' % cur_trajectory
+                cmds_filename = current_directory + '%s/expert_cmds.data' % cur_trajectory
+                try:
+                    cur_features = self.load_features(features_filename)
+                    cur_cmds = self.load_cmds(cmds_filename)
+                    self.features += cur_features
+                    self.cmds += cur_cmds
+                    cur_trajectory += 1
+                except:
+                    break
 
         # Write the data to the aggregate file.
-        pdb.set_trace()
         with open(self.aggregate_features_filename, 'w') as f:
             f.write(self.features) 
         with open(self.aggregate_cmds_filename, 'w') as f:
@@ -117,10 +116,10 @@ class DAgger(object):
         learner.fit(aggregate_features, aggregate_cmds)
         self.learners.append(learner)
 
-    def test(self, x, itteration):
+    def test(self, x, iteration):
         """ Try to fit the new state to a left/right control input.
         """ 
-        x_value = self.learners[i].predict(x)
+        x_value = self.learners[iteration].predict(x)
 
 
 def _test_dagger():
